@@ -1,0 +1,16 @@
+{
+	"authors": [
+		"bvg"
+	],
+	"copyright": "Copyright © 2024, bvg",
+	"dependencies": {
+		"vibe-d": "~>0.10.1"
+	},
+	"description": "A minimal D application.",
+	"license": "proprietary",
+	"name": "aggr",
+	"targetType": "executable",
+	"sourcePaths": ["source"],
+    "importPaths": ["source"],
+    "mainSourceFile": "source/app.d"
+}
