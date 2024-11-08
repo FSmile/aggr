@@ -5,14 +5,7 @@ import core.time : Duration;
 import core.atomic : atomicOp;
 import core.interfaces : IMetricsCollector;
 import core.types : MetricsSnapshot;
-/*
-struct LogStatistics {
-    long totalLines;
-    long processedLines;
-    long errorCount;
-    Duration totalProcessingTime; 
-}
-*/
+
 class MetricsCollector : IMetricsCollector {
     private {
         Duration totalProcessingTime;

@@ -1,6 +1,6 @@
 module utils.hash;
 
-string getFastHash(string input) {
+string getFastHash(string input) @safe {
     if (input.length == 0) return "";
     
     // FNV-1a hash algorithm

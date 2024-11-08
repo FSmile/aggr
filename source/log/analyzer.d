@@ -70,7 +70,7 @@ class LogAnalyzer : ILogAnalyzer {
         }
     }
 
-    void processLine(string line) {
+    void processLine(string line) @trusted {
         synchronized(dataMutex) {
             auto result = parser.parse(line);
             if (!result.isNull) {
@@ -88,7 +88,7 @@ class LogAnalyzer : ILogAnalyzer {
         }
     }
 
-    void writeResults() {
+    void writeResults() @trusted {
         synchronized(dataMutex) {
             auto sortedItems = items.values.array();
             sortedItems.sort!((a, b) => a.avg > b.avg);

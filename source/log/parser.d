@@ -13,17 +13,16 @@ import std.array : split;
 import std.string : strip;
 
 interface ILogParser {
-    Nullable!(string[string]) parse(string line);
+    Nullable!(string[string]) parse(string line) @safe;
 }
 
 class LogParser : ILogParser {
-    Nullable!(string[string]) parse(string line) {
+    Nullable!(string[string]) parse(string line) @safe {
         auto parts = line.split(",");
         if (parts.length < 2) return Nullable!(string[string]).init;
 
         string[string] result;
         
-        // Парсим длительность
         try {
             auto durationParts = parts[0].split("-");
             if (durationParts.length == 2) {
@@ -33,7 +32,6 @@ class LogParser : ILogParser {
             return Nullable!(string[string]).init;
         }
 
-        // Парсим остальные поля
         foreach (part; parts[1..$]) {
             auto kv = part.split("=");
             if (kv.length == 2) {
@@ -56,7 +54,7 @@ class CsvWriter : IResultWriter {
         mutex = new shared Mutex();
     }
 
-    void write(LogLine[] results) {
+    void write(LogLine[] results) @safe {
         synchronized(mutex) {
             scope(exit) outputFile.flush();
             
@@ -69,7 +67,7 @@ class CsvWriter : IResultWriter {
                     item.lastContext.replace("\n", " ").replace("\"", "\"\""),
                     item.count,
                     item.sum / 1000,      // мкс -> мс
-                    item.avg / 1000,      // мкс -> мс
+                    item.avg() / 1000,    // мкс -> мс
                     item.max / 1000       // мкс -> мс
                 );
             }

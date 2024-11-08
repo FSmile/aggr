@@ -35,7 +35,9 @@ struct LogLine {
     long sum;
     long max;
 
-    @property long avg() const { return sum / count; }
+    long avg() const @safe {
+        return sum / count;
+    }
 
     this(string h, string c, long d) @safe {
         hash = h;
@@ -45,7 +47,7 @@ struct LogLine {
         max = d;
     }
 
-    void updateStats(long duration) {
+    void updateStats(long duration) @safe {
         count++;
         sum += duration;
         if (duration > max) max = duration;
