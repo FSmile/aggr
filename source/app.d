@@ -3,7 +3,6 @@ module app;
 import std.stdio;
 import std.string;
 import std.path;
-import std.parallelism : TaskPool, task;
 
 import config.settings : Config;
 import core.interfaces : ILogger, ILogAnalyzer;
