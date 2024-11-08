@@ -6,6 +6,7 @@ import std.path;
 
 import config.settings : Config;
 import core.interfaces : ILogger, ILogAnalyzer;
+
 import log.analyzer : LogAnalyzer;
 import workers.processor : DataProcessor;
 import utils.logging : FileLogger;
@@ -23,47 +24,26 @@ import std.parallelism : TaskPool, task;
 class Application {
     private ILogger logger;
     private Config config;
-    private ILogAnalyzer analyzer;
-    private TaskPool processors;
+    private DataProcessor processor;
 
     this(string[] args) {
         config = Config.fromArgs(args);
         logger = new FileLogger(config.logPath);
-        analyzer = new LogAnalyzer(new LogParser(), new CsvWriter(config.outputPath), logger);
-        processors = new TaskPool(config.workerCount);
-    }
-
-    private void processLines(string[] lines, ILogAnalyzer analyzer) {
-        foreach (line; lines) {
-            analyzer.processLine(line);
-        }
+        auto analyzer = new LogAnalyzer(
+            new LogParser(), 
+            new CsvWriter(config.outputPath), 
+            logger
+        );
+        processor = new DataProcessor(config, analyzer);
     }
 
     void run() {
         try {
-            auto buffer = new InputBuffer();
-            
-            runTask(() {
-                try {
-                    foreach (const char[] line; stdin.byLine) {
-                        string lineStr = cast(string)line.idup;
-                        if (!buffer.push(lineStr)) {
-                            auto lines = buffer.flush();
-                            processors.put(task(() => processLines(lines, analyzer)));
-                        }
-                    }
-                    auto remainingLines = buffer.flush();
-                    if (remainingLines.length > 0) {
-                        processors.put(task(() => processLines(remainingLines, analyzer)));
-                    }
-                } catch (Exception) {
-                    // Обработка ошибок
-                }
-            });
-
-            runEventLoop();
+            processor.start();
         } catch (Exception e) {
             logger.error("Application error", e);
+        } finally {
+            processor.shutdown();
         }
     }
 }

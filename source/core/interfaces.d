@@ -5,10 +5,10 @@ import core.types : LogLevel, LogLine, LogStatistics, MetricsSnapshot;
 
 // Интерфейс для анализатора логов
 interface ILogAnalyzer {
-    void processLine(string line);
-    void writeResults();
-    LogStatistics getStatistics();
-    int getLineCount();
+    void processLine(string line) @safe;
+    void writeResults() @safe;
+    LogStatistics getStatistics() @safe;
+    int getLineCount() @safe;
 }
 
 // Интерфейс для логирования
@@ -21,8 +21,8 @@ interface ILogger {
 
 // Интерфейс для обработки результатов
 interface IResultWriter {
-    void write(LogLine[] results);
-    void close();
+    void write(LogLine[] results) @safe;
+    void close() @safe;
 }
 
 // Интерфейс для сборщика метрик
