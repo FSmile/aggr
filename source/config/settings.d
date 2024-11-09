@@ -1,38 +1,75 @@
 module config.settings;
-
-import core.time : Duration;
+import std.conv : ConvException;
+import core.time : Duration, seconds;
 import std.string : empty;
 import utils.errors : ConfigException;
 import std.conv : to;
-import core.time : seconds;
+import std.getopt;
+import std.path : setExtension, baseName;
+import std.file : exists;
+import std.format : format;
+import core.interfaces : ILogger;
 
 struct Config {
     string inputPath;
     string outputPath;
     string logPath;
-    int workerCount;
-    Duration timeout;
+    string[] groupBy = ["Context"];     
+    string aggregate = "Duration";       
+    int workerCount = 1;                
+    Duration timeout = 5.seconds;
+    ILogger logger;
 
     static Config fromArgs(string[] args) {
         Config config;
         
-        // Простая реализация для примера
-        if (args.length >= 4) {
+        try {
+            auto helpInformation = getopt(
+                args,
+                "group-by|g",  "Fields to group by (default: Context)", &config.groupBy,
+                "aggregate|a", "Field to aggregate (default: Duration)", &config.aggregate,
+                "worker|w",    "Number of worker threads (default: 1)", &config.workerCount,
+                "output|o", "Output file path (default: input file name with .csv extension)", &config.outputPath,
+                "log|l", "Log file path (default: aggr.log)", &config.logPath
+            );
+
+            if (helpInformation.helpWanted || args.length < 2) {
+                defaultGetoptPrinter(
+                    "Usage: aggr [options] input_file\n\nOptions:",
+                    helpInformation.options
+                );
+                throw new ConfigException("Help requested");
+            }
+
             config.inputPath = args[1];
-            config.outputPath = args[2];
-            config.logPath = args[3];
-            config.workerCount = args.length > 4 ? args[4].to!int : 1;
-            config.timeout = 5.seconds;
-        } else {
-            throw new ConfigException("Not enough arguments");
+            
+            // Устанавливаем значения по умолчанию если не заданы
+            if (config.outputPath.empty) {
+                config.outputPath = "output.csv";
+            }
+            if (config.logPath.empty) {
+                config.logPath = "aggr.log";
+            }
+            
+            config.validate();
+            
+        } catch (GetOptException e) {
+            throw new ConfigException("Invalid command line arguments: " ~ e.msg);
+        } catch (ConvException e) {
+            throw new ConfigException("Invalid worker count value");
         }
         
-        config.validate();
         return config;
     }
 
     void validate() {
-        // Валидация конфигурации
+        if (inputPath.empty || (inputPath != "-" && !exists(inputPath))) {
+            throw new ConfigException("Input file '%s' does not exist".format(inputPath));
+        }
+        if (workerCount < 1 || workerCount > 32) {
+            throw new ConfigException("Worker count must be between 1 and 32, got: %d"
+                .format(workerCount));
+        }
     }
 } 
 
