@@ -1,5 +1,5 @@
 module tests.processor_test;
-
+import std.conv : ConvException;
 unittest {
     // Тест параллельной обработки
     auto config = Config();

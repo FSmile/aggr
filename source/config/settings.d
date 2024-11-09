@@ -1,19 +1,19 @@
 module config.settings;
-
+import std.conv : ConvException;
 import core.time : Duration, seconds;
 import std.string : empty;
 import utils.errors : ConfigException;
 import std.conv : to;
 import std.getopt;
-import std.conv : ConvException;
+import std.path : setExtension, baseName;
 
 struct Config {
     string inputPath;
     string outputPath;
     string logPath;
-    string[] groupBy = ["Context"];     // поля для группировки
-    string aggregate = "Duration";       // поле для агрегации
-    int workerCount = 1;                // количество потоков
+    string[] groupBy = ["Context"];     
+    string aggregate = "Duration";       
+    int workerCount = 1;                
     Duration timeout = 5.seconds;
 
     static Config fromArgs(string[] args) {
@@ -24,25 +24,28 @@ struct Config {
                 args,
                 "group-by|g",  "Fields to group by (default: Context)", &config.groupBy,
                 "aggregate|a", "Field to aggregate (default: Duration)", &config.aggregate,
-                "worker|w",    "Number of worker threads (default: 1)", &config.workerCount
+                "worker|w",    "Number of worker threads (default: 1)", &config.workerCount,
+                "output|o", "Output file path (default: input file name with .csv extension)", &config.outputPath,
+                "log|l", "Log file path (default: aggr.log)", &config.logPath
             );
 
-            if (helpInformation.helpWanted) {
+            if (helpInformation.helpWanted || args.length < 2) {
                 defaultGetoptPrinter(
-                    "Usage: app [options] input.log output.csv app.log\n\nOptions:",
+                    "Usage: aggr [options] input_file\n\nOptions:",
                     helpInformation.options
                 );
                 throw new ConfigException("Help requested");
             }
 
-            // Проверяем позиционные аргументы
-            if (args.length < 4) {
-                throw new ConfigException("Not enough arguments");
-            }
-
             config.inputPath = args[1];
-            config.outputPath = args[2];
-            config.logPath = args[3];
+            
+            // Устанавливаем значения по умолчанию если не заданы
+            if (config.outputPath.empty) {
+                config.outputPath = config.inputPath.setExtension("csv");
+            }
+            if (config.logPath.empty) {
+                config.logPath = "aggr.log";
+            }
             
             config.validate();
             
@@ -58,12 +61,6 @@ struct Config {
     void validate() {
         if (inputPath.empty) {
             throw new ConfigException("Input file not specified");
-        }
-        if (outputPath.empty) {
-            throw new ConfigException("Output file not specified");
-        }
-        if (logPath.empty) {
-            throw new ConfigException("Log file not specified");
         }
         if (workerCount < 1 || workerCount > 32) {
             throw new ConfigException("Worker count must be between 1 and 32");
