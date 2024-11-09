@@ -2,48 +2,56 @@ module utils.logging;
 
 import std.stdio;
 import std.datetime;
-import std.string;
-import core.sync.mutex : Mutex;
+import core.sync.mutex;
 import core.interfaces : ILogger;
 import core.types : LogLevel;
-import std.string : format;
-import std.stdio : File;
+import std.format : format;
 
 class FileLogger : ILogger {
-    private string filePath;
-    private shared Mutex mutex;
+    private {
+        File logFile;
+        shared Mutex mutex;
+    }
 
     this(string path) {
-        filePath = path;
+        logFile = File(path, "w");
         mutex = new shared Mutex();
     }
 
-    void log(LogLevel level, string message, string file = __FILE__, int line = __LINE__) {
+    ~this() {
         synchronized(mutex) {
-            auto timestamp = Clock.currTime().toISOExtString();
-            auto logMessage = format("%s [%s] %s (%s:%d)\n", 
-                timestamp, level, message, file, line);
-            
-            auto logFile = File(filePath, "a");
-            scope(exit) logFile.close();
-            logFile.write(logMessage);
+            if (logFile.isOpen) {
+                logFile.close();
+            }
         }
+    }
+
+    private void writeLog(LogLevel level, string message) {
+        synchronized(mutex) {
+            auto timestamp = Clock.currTime();
+            logFile.writefln("%s [%s] %s", timestamp.toSimpleString(), level, message);
+            logFile.flush();
+        }
+    }
+
+    void log(LogLevel level, string message, string file = __FILE__, int line = __LINE__) {
+        writeLog(level, format("%s(%d): %s", file, line, message));
     }
 
     void error(string message, Exception e = null) {
         if (e !is null) {
-            log(LogLevel.ERROR, message ~ ": " ~ e.msg);
+            writeLog(LogLevel.ERROR, format("%s: %s\n%s", message, e.msg, e.toString()));
         } else {
-            log(LogLevel.ERROR, message);
+            writeLog(LogLevel.ERROR, message);
         }
     }
 
     void info(string message) {
-        log(LogLevel.INFO, message);
+        writeLog(LogLevel.INFO, message);
     }
 
     void debug_(string message) {
-        log(LogLevel.DEBUG, message);
+        writeLog(LogLevel.DEBUG, message);
     }
 }
 

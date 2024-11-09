@@ -23,6 +23,8 @@ import std.stdio : stdin;
 import core.buffer : InputBuffer;
 import std.parallelism : TaskPool, task;
 
+import factories.analyzer_factory;
+
 class Application {
     private ILogger logger;
     private Config config;
@@ -31,18 +33,26 @@ class Application {
     this(string[] args) {
         config = Config.fromArgs(args);
         logger = new FileLogger(config.logPath);
-        auto analyzer = new LogAnalyzer(
-            new LogParser(), 
-            new CsvWriter(config.outputPath), 
-            logger,
-            config.workerCount
-        );
+        
+        logger.info("Starting initialization...");
+        
+        config.logger = logger;
+        config.validate();
+        
+        logger.info("Creating analyzer...");
+        auto factory = new AnalyzerFactory(logger);
+        auto analyzer = factory.createAnalyzer(config.outputPath, config.workerCount);
+        
+        logger.info("Creating processor...");
         processor = new DataProcessor(config, analyzer);
+        logger.info("Initialization completed");
     }
 
     void run() {
         try {
+            logger.info("Starting application...");
             processor.start();
+            logger.info("Application finished");
         } catch (Exception e) {
             logger.error("Application error", e);
         } finally {
@@ -53,16 +63,14 @@ class Application {
 
 void main(string[] args) {
     try {
+        writeln("Log Aggregator v1.0.0");
+        writeln("Using D Compiler v", __VERSION__);
         auto app = new Application(args);
         app.run();
     } catch (ConfigException e) {
-<<<<<<< Updated upstream
         writeln("Ошибка конфигурации: ", e.msg);
-        writeln("Использование: app input.log output.csv app.log [worker_count]");
-=======
         stderr.writeln("Configuration error: ", e.msg);
         writeln("Использование: app input.log output.csv aggr.log [worker_count]");
->>>>>>> Stashed changes
         writeln("  input.log    - входной файл логов");
         writeln("  output.csv   - выходной файл статистики");
         writeln("  aggr.log     - файл логов приложения");
