@@ -23,6 +23,8 @@ import std.stdio : stdin;
 import core.buffer : InputBuffer;
 import std.parallelism : TaskPool, task;
 
+import factories.analyzer_factory;
+
 class Application {
     private ILogger logger;
     private Config config;
@@ -38,12 +40,8 @@ class Application {
         config.validate();
         
         logger.info("Creating analyzer...");
-        auto analyzer = new LogAnalyzer(
-            new LogParser(), 
-            new CsvWriter(config.outputPath), 
-            logger,
-            config.workerCount
-        );
+        auto factory = new AnalyzerFactory(logger);
+        auto analyzer = factory.createAnalyzer(config.outputPath, config.workerCount);
         
         logger.info("Creating processor...");
         processor = new DataProcessor(config, analyzer);
@@ -56,9 +54,9 @@ class Application {
             processor.start();
             logger.info("Application finished");
         } catch (Exception e) {
-            try {
-                logger.error("Application error", e);
-            } catch (Exception) {}
+            logger.error("Application error", e);
+        } finally {
+            processor.shutdown();
         }
     }
 }
@@ -66,7 +64,6 @@ class Application {
 void main(string[] args) {
     try {
         writeln("Log Aggregator v1.0.0");
-        writeln("vibe-d 0.10.1");
         writeln("Using D Compiler v", __VERSION__);
         auto app = new Application(args);
         app.run();

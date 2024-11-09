@@ -1,26 +1,32 @@
 module tests.processor_test;
 import std.conv : ConvException;
 unittest {
-    // Тест параллельной обработки
     auto config = Config();
-    config.workerCount = 2;
-    config.timeout = 1.seconds;
-
+    config.workerCount = 1;
+    
     auto analyzer = new LogAnalyzerMock();
     auto processor = new DataProcessor(config, analyzer);
-
-    // Имитируем входные данные
-    auto testInput = ["line1", "line2", "line3"];
-    foreach(line; testInput) {
-        processor.buffer.push(line, config.timeout);
+    
+    auto testFile = File("test.log", "w");
+    scope(exit) {
+        testFile.close();
+        remove("test.log");
     }
-
-    // Проверяем корректность параллельной обработки
+    
+    // Записываем многострочный контекст
+    testFile.writeln("40:33.299009-1515852,DBPOSTGRS,6,Context='");
+    testFile.writeln("Line 1");
+    testFile.writeln("Line 2");
+    testFile.writeln("Line 3'");
+    testFile.close();
+    
+    config.inputPath = "test.log";
     processor.start();
-    Thread.sleep(100.msecs);
-    processor.shutdown();
-
-    assert(analyzer.getProcessedLines() == testInput.length);
+    
+    assert(analyzer.getProcessedLines() == 1);
+    assert(analyzer.getLastContext().indexOf("Line 1") != -1);
+    assert(analyzer.getLastContext().indexOf("Line 2") != -1);
+    assert(analyzer.getLastContext().indexOf("Line 3") != -1);
 } 
 
  
