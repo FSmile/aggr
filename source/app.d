@@ -56,11 +56,16 @@ void main(string[] args) {
         auto app = new Application(args);
         app.run();
     } catch (ConfigException e) {
+<<<<<<< Updated upstream
         writeln("Ошибка конфигурации: ", e.msg);
         writeln("Использование: app input.log output.csv app.log [worker_count]");
+=======
+        stderr.writeln("Configuration error: ", e.msg);
+        writeln("Использование: app input.log output.csv aggr.log [worker_count]");
+>>>>>>> Stashed changes
         writeln("  input.log    - входной файл логов");
         writeln("  output.csv   - выходной файл статистики");
-        writeln("  app.log      - файл логов приложения");
+        writeln("  aggr.log     - файл логов приложения");
         writeln("  worker_count - количество потоков (по умолчанию 1)");
         return;
     } catch (Exception e) {
