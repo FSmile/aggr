@@ -10,7 +10,7 @@ unittest {
         string[] args = ["aggr", "input.log"];
         auto config = Config.fromArgs(args);
         assert(config.inputPath == "input.log");
-        assert(config.outputPath == "input.csv");
+        assert(config.outputPath == "output.csv");
         assert(config.logPath == "aggr.log");
         assert(config.workerCount == 1);
     }

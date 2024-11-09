@@ -42,7 +42,7 @@ struct Config {
             
             // Устанавливаем значения по умолчанию если не заданы
             if (config.outputPath.empty) {
-                config.outputPath = config.inputPath.setExtension("csv");
+                config.outputPath = "output.csv";
             }
             if (config.logPath.empty) {
                 config.logPath = "aggr.log";

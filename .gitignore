@@ -16,3 +16,5 @@ aggr-test-*
 *.lst
 *.log
 *.dll
+*.csv
+*.txt
