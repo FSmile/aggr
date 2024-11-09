@@ -42,6 +42,42 @@ unittest {
         string[] args = ["app", "input.log", "output.csv", "app.log", "invalid"];
         assertThrown!ConfigException(Config.fromArgs(args));
     }
+
+    // Тест: параметры командной строки
+    {
+        string[] args = [
+            "app",
+            "input.log",
+            "output.csv",
+            "app.log",
+            "--group-by=Context,Time",
+            "--aggregate=Count",
+            "--worker=4"
+        ];
+        
+        auto config = Config.fromArgs(args);
+        assert(config.groupBy == ["Context", "Time"]);
+        assert(config.aggregate == "Count");
+        assert(config.workerCount == 4);
+    }
+
+    // Тест: краткая форма параметров
+    {
+        string[] args = [
+            "app",
+            "input.log",
+            "output.csv",
+            "app.log",
+            "-g", "Context",
+            "-a", "Duration",
+            "-w", "2"
+        ];
+        
+        auto config = Config.fromArgs(args);
+        assert(config.groupBy == ["Context"]);
+        assert(config.aggregate == "Duration");
+        assert(config.workerCount == 2);
+    }
 } 
 
  
