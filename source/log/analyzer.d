@@ -53,7 +53,7 @@ class LogAnalyzer : ILogAnalyzer {
         ILogger logger;
     }
 
-    this(ILogParser parser, IResultWriter writer, ILogger logger) {
+    this(ILogParser parser, IResultWriter writer, ILogger logger, size_t workerCount = 1) {
         this.parser = parser;
         this.writer = writer;
         this.logger = logger;
@@ -70,7 +70,7 @@ class LogAnalyzer : ILogAnalyzer {
         }
     }
 
-    void processLine(string line) @trusted {
+    void processLine(string line, size_t workerId = 0) @trusted {
         synchronized(dataMutex) {
             auto result = parser.parse(line);
             if (!result.isNull) {
@@ -111,6 +111,5 @@ class LogAnalyzer : ILogAnalyzer {
         return atomicLoad(lineCount);
     }
 
-    // Текущая реализация LogAnalyzer
-    // Строки 60-249
+
 }

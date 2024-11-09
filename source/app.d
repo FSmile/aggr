@@ -3,9 +3,11 @@ module app;
 import std.stdio;
 import std.string;
 import std.path;
+import std.conv : ConvException;
 
 import config.settings : Config;
 import core.interfaces : ILogger, ILogAnalyzer;
+import utils.errors : ConfigException;
 
 import log.analyzer : LogAnalyzer;
 import workers.processor : DataProcessor;
@@ -32,7 +34,8 @@ class Application {
         auto analyzer = new LogAnalyzer(
             new LogParser(), 
             new CsvWriter(config.outputPath), 
-            logger
+            logger,
+            config.workerCount
         );
         processor = new DataProcessor(config, analyzer);
     }
@@ -49,7 +52,21 @@ class Application {
 }
 
 void main(string[] args) {
-    auto app = new Application(args);
-    app.run();
+    try {
+        auto app = new Application(args);
+        app.run();
+    } catch (ConfigException e) {
+        writeln("Ошибка конфигурации: ", e.msg);
+        writeln("Использование: app input.log output.csv app.log [worker_count]");
+        writeln("  input.log    - входной файл логов");
+        writeln("  output.csv   - выходной файл статистики");
+        writeln("  app.log      - файл логов приложения");
+        writeln("  worker_count - количество потоков (по умолчанию 1)");
+        return;
+    } catch (Exception e) {
+        writeln("Критическая ошибка: ", e.msg);
+        debug writeln(e.toString());
+        return;
+    }
 }
 
