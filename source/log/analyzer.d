@@ -17,6 +17,7 @@ import std.array : array;
 import std.algorithm : sort;
 import utils.hash : getFastHash;
 import std.format : format;
+import std.algorithm : map;
 
 interface IResultWriter {
     void write(LogLine[] results);
@@ -92,8 +93,10 @@ class LogAnalyzer : ILogAnalyzer {
                 if (trimmedLine.endsWith("'")) {
                     logger.debug_("Found end of multiline context");
                     contextBuffer ~= trimmedLine[0..$-1];
-                    auto fullContext = contextBuffer[0];
-                    fullContext ~= "\n" ~ contextBuffer[1..$].join("\n");
+                    auto fullContext = contextBuffer[0].strip();
+                    if (contextBuffer.length > 1) {
+                        fullContext ~= "\n" ~ contextBuffer[1..$].map!(line => line.strip()).join("\n");
+                    }
                     logger.debug_("Full context: " ~ fullContext);
                     processFullContext(fullContext);
                     contextBuffer.length = 0;
