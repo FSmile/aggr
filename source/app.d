@@ -31,23 +31,34 @@ class Application {
     this(string[] args) {
         config = Config.fromArgs(args);
         logger = new FileLogger(config.logPath);
+        
+        logger.info("Starting initialization...");
+        
         config.logger = logger;
+        config.validate();
+        
+        logger.info("Creating analyzer...");
         auto analyzer = new LogAnalyzer(
             new LogParser(), 
             new CsvWriter(config.outputPath), 
             logger,
             config.workerCount
         );
+        
+        logger.info("Creating processor...");
         processor = new DataProcessor(config, analyzer);
+        logger.info("Initialization completed");
     }
 
     void run() {
         try {
+            logger.info("Starting application...");
             processor.start();
+            logger.info("Application finished");
         } catch (Exception e) {
-            logger.error("Application error", e);
-        } finally {
-            processor.shutdown();
+            try {
+                logger.error("Application error", e);
+            } catch (Exception) {}
         }
     }
 }
@@ -55,6 +66,7 @@ class Application {
 void main(string[] args) {
     try {
         writeln("Log Aggregator v1.0.0");
+        writeln("vibe-d 0.10.1");
         writeln("Using D Compiler v", __VERSION__);
         auto app = new Application(args);
         app.run();

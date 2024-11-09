@@ -11,6 +11,7 @@ import config.settings : Config;
 import core.buffer : InputBuffer;
 import vibe.core.core;
 import std.stdio : stdin, File;
+import vibe.core.core : runEventLoop, exitEventLoop;
 
 class DataProcessor {
     private {
@@ -61,6 +62,7 @@ class DataProcessor {
     }
 
     void start() {
+        bool completed = false;
         runTask({
             try {
                 logger.info("Starting processing...");
@@ -74,15 +76,22 @@ class DataProcessor {
                     processInput(file);
                 }
                 logger.info("Processing completed");
+                completed = true;
+                exitEventLoop();
             } catch (Exception e) {
                 debug {
                     try { 
                         logger.error("Processing failed", e); 
                     } catch (Exception) {}
                 }
+                completed = true;
+                exitEventLoop();
             }
         });
-        runEventLoop();
+        
+        if (!completed) {
+            runEventLoop();
+        }
     }
 
     void shutdown() @trusted {

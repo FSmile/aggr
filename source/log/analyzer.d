@@ -16,6 +16,7 @@ import log.parser : ILogParser;
 import std.array : array;
 import std.algorithm : sort;
 import utils.hash : getFastHash;
+import std.format : format;
 
 interface IResultWriter {
     void write(LogLine[] results);
@@ -72,24 +73,31 @@ class LogAnalyzer : ILogAnalyzer {
 
     void processLine(string line, size_t workerId = 0) @trusted {
         synchronized(dataMutex) {
-            auto result = parser.parse(line);
-            if (!result.isNull) {
-                auto hash = getFastHash(result.get["Context"]);
-                if (hash in items) {
-                    items[hash].updateStats(result.get["Duration"].to!long);
-                } else {
-                    items[hash] = LogLine(
-                        hash,
-                        result.get["Context"],
-                        result.get["Duration"].to!long
-                    );
+            try {
+                auto result = parser.parse(line);
+                if (!result.isNull) {
+                    auto hash = getFastHash(result.get["Context"]);
+                    if (hash in items) {
+                        items[hash].updateStats(result.get["Duration"].to!long);
+                    } else {
+                        items[hash] = LogLine(
+                            hash,
+                            result.get["Context"],
+                            result.get["Duration"].to!long
+                        );
+                    }
+                    
+                    if (atomicOp!"+="(lineCount, 1) % 10000 == 0) {
+                        try {
+                            logger.info("Processed %d lines, unique contexts: %d"
+                                .format(lineCount, items.length));
+                        } catch (Exception) {} // Игнорируем ошибки логирования
+                    }
                 }
-                
-                // Каждые 10000 строк выводим статистику
-                if (atomicOp!"+="(lineCount, 1) % 10000 == 0) {
-                    logger.info("Processed %d lines, unique contexts: %d"
-                        .format(lineCount, items.length));
-                }
+            } catch (Exception e) {
+                try {
+                    logger.error("Error processing line: " ~ line, e);
+                } catch (Exception) {} // Игнорируем ошибки логирования
             }
         }
     }

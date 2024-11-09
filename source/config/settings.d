@@ -70,8 +70,6 @@ struct Config {
             throw new ConfigException("Worker count must be between 1 and 32, got: %d"
                 .format(workerCount));
         }
-        logger.info("Configuration loaded: input=%s, output=%s, workers=%d"
-            .format(inputPath, outputPath, workerCount));
     }
 } 
 
