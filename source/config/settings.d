@@ -7,6 +7,8 @@ import std.conv : to;
 import std.getopt;
 import std.path : setExtension, baseName;
 import std.file : exists;
+import std.format : format;
+import core.interfaces : ILogger;
 
 struct Config {
     string inputPath;
@@ -16,6 +18,7 @@ struct Config {
     string aggregate = "Duration";       
     int workerCount = 1;                
     Duration timeout = 5.seconds;
+    ILogger logger;
 
     static Config fromArgs(string[] args) {
         Config config;
@@ -61,14 +64,14 @@ struct Config {
 
     void validate() {
         if (inputPath.empty || (inputPath != "-" && !exists(inputPath))) {
-            throw new ConfigException("Input file not specified or does not exist");
+            throw new ConfigException("Input file '%s' does not exist".format(inputPath));
         }
         if (workerCount < 1 || workerCount > 32) {
-            throw new ConfigException("Worker count must be between 1 and 32");
+            throw new ConfigException("Worker count must be between 1 and 32, got: %d"
+                .format(workerCount));
         }
-        if (groupBy.length == 0) {
-            throw new ConfigException("At least one group-by field must be specified");
-        }
+        logger.info("Configuration loaded: input=%s, output=%s, workers=%d"
+            .format(inputPath, outputPath, workerCount));
     }
 } 
 

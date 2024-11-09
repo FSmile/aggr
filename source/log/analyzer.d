@@ -6,7 +6,7 @@ import std.conv;
 import std.typecons : Nullable;
 import std.traits : isNumeric;
 import core.sync.mutex : Mutex;
-import core.atomic : atomicLoad;
+import core.atomic : atomicLoad, atomicOp;
 import core.time : Duration;
 
 import core.interfaces : ILogAnalyzer, IResultWriter, ILogger;
@@ -83,6 +83,12 @@ class LogAnalyzer : ILogAnalyzer {
                         result.get["Context"],
                         result.get["Duration"].to!long
                     );
+                }
+                
+                // Каждые 10000 строк выводим статистику
+                if (atomicOp!"+="(lineCount, 1) % 10000 == 0) {
+                    logger.info("Processed %d lines, unique contexts: %d"
+                        .format(lineCount, items.length));
                 }
             }
         }

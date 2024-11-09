@@ -23,7 +23,7 @@ class DataProcessor {
     }
 
     this(Config config, ILogAnalyzer analyzer) {
-        this.logger = new FileLogger("processor.log");
+        this.logger = config.logger;
         this.queue = cast(shared)new Queue!string(this.logger);
         this.processors = new TaskPool(config.workerCount);
         this.analyzer = analyzer;
@@ -52,24 +52,34 @@ class DataProcessor {
                 processors.put(task(() @trusted => processLines(remainingLines)));
             }
         } catch (Exception e) {
-            debug try { logger.error("Error processing input"); } catch (Exception) {}
+            debug {
+                try { 
+                    logger.error("Error processing input", e); 
+                } catch (Exception) {}
+            }
         }
     }
 
     void start() {
-        runTask(() nothrow @system {
+        runTask({
             try {
+                logger.info("Starting processing...");
                 if (inputPath == "-") {
-                    // Читаем из stdin если указан "-"
+                    logger.info("Reading from stdin");
                     processInput(stdin);
                 } else {
-                    // Читаем из файла
+                    logger.info("Reading from file: " ~ inputPath);
                     auto file = File(inputPath, "r");
                     scope(exit) file.close();
                     processInput(file);
                 }
-            } catch (Exception) {
-                // Игнорируем ошибки
+                logger.info("Processing completed");
+            } catch (Exception e) {
+                debug {
+                    try { 
+                        logger.error("Processing failed", e); 
+                    } catch (Exception) {}
+                }
             }
         });
         runEventLoop();

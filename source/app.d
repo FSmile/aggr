@@ -31,6 +31,7 @@ class Application {
     this(string[] args) {
         config = Config.fromArgs(args);
         logger = new FileLogger(config.logPath);
+        config.logger = logger;
         auto analyzer = new LogAnalyzer(
             new LogParser(), 
             new CsvWriter(config.outputPath), 
@@ -53,10 +54,12 @@ class Application {
 
 void main(string[] args) {
     try {
+        writeln("Log Aggregator v1.0.0");
+        writeln("Using D Compiler v", __VERSION__);
         auto app = new Application(args);
         app.run();
     } catch (ConfigException e) {
-        writeln("Ошибка конфигурации: ", e.msg);
+        stderr.writeln("Configuration error: ", e.msg);
         writeln("Использование: app input.log output.csv app.log [worker_count]");
         writeln("  input.log    - входной файл логов");
         writeln("  output.csv   - выходной файл статистики");
