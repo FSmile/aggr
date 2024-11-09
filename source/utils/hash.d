@@ -10,6 +10,6 @@ string getFastHash(string input) @safe {
     // Используем MurmurHash3 из стандартной библиотеки
     auto hash = digest!(MurmurHash3!128)(input.representation);
     
-    // Преобразуем в 16-символьную hex строку
+    // Преобразуем в 16-символьную hex строку 
     return format("%016x", hash[0]);
 }
