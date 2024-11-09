@@ -19,6 +19,7 @@ class DataProcessor {
         TaskPool processors;
         ILogAnalyzer analyzer;
         InputBuffer buffer;
+        string inputPath;
     }
 
     this(Config config, ILogAnalyzer analyzer) {
@@ -27,6 +28,7 @@ class DataProcessor {
         this.processors = new TaskPool(config.workerCount);
         this.analyzer = analyzer;
         this.buffer = new InputBuffer();
+        this.inputPath = config.inputPath;
     }
 
     private void processLines(string[] lines) @trusted {
@@ -57,7 +59,15 @@ class DataProcessor {
     void start() {
         runTask(() nothrow @system {
             try {
-                processInput(stdin);
+                if (inputPath == "-") {
+                    // Читаем из stdin если указан "-"
+                    processInput(stdin);
+                } else {
+                    // Читаем из файла
+                    auto file = File(inputPath, "r");
+                    scope(exit) file.close();
+                    processInput(file);
+                }
             } catch (Exception) {
                 // Игнорируем ошибки
             }

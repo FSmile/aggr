@@ -6,6 +6,7 @@ import utils.errors : ConfigException;
 import std.conv : to;
 import std.getopt;
 import std.path : setExtension, baseName;
+import std.file : exists;
 
 struct Config {
     string inputPath;
@@ -59,8 +60,8 @@ struct Config {
     }
 
     void validate() {
-        if (inputPath.empty) {
-            throw new ConfigException("Input file not specified");
+        if (inputPath.empty || (inputPath != "-" && !exists(inputPath))) {
+            throw new ConfigException("Input file not specified or does not exist");
         }
         if (workerCount < 1 || workerCount > 32) {
             throw new ConfigException("Worker count must be between 1 and 32");
