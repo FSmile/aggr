@@ -25,6 +25,8 @@ import std.parallelism : TaskPool, task;
 
 import factories.analyzer_factory;
 
+import version_info : VersionInfo;
+
 class Application {
     private ILogger logger;
     private Config config;
@@ -63,16 +65,18 @@ class Application {
 
 void main(string[] args) {
     try {
-        writeln("Log Aggregator v1.0.0");
-        writeln("Using D Compiler v", __VERSION__);
+        auto version_ = VersionInfo.current();
+        writeln(version_.toString());
+        
         auto app = new Application(args);
         app.run();
     } catch (ConfigException e) {
+        writeln("Ошибка конфигурации: ", e.msg);
         stderr.writeln("Configuration error: ", e.msg);
-        writeln("Использование: app input.log output.csv app.log [worker_count]");
+        writeln("Использование: app input.log output.csv aggr.log [worker_count]");
         writeln("  input.log    - входной файл логов");
         writeln("  output.csv   - выходной файл статистики");
-        writeln("  app.log      - файл логов приложения");
+        writeln("  aggr.log     - файл логов приложения");
         writeln("  worker_count - количество потоков (по умолчанию 1)");
         return;
     } catch (Exception e) {

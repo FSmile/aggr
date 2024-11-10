@@ -2,6 +2,7 @@ module core.interfaces;
 
 import core.time : Duration;
 import core.types : LogLevel, LogLine, LogStatistics, MetricsSnapshot;
+import std.typecons : Nullable;
 
 // Интерфейс для анализатора логов
 interface ILogAnalyzer {
@@ -33,4 +34,6 @@ interface IMetricsCollector {
     MetricsSnapshot getSnapshot();
 } 
 
- 
+interface ILogParser {
+    Nullable!(string[string]) parse(string line);
+}

@@ -9,34 +9,14 @@ import core.sync.mutex : Mutex;
 import core.atomic : atomicLoad, atomicOp;
 import core.time : Duration;
 
-import core.interfaces : ILogAnalyzer, IResultWriter, ILogger;
+import core.interfaces : ILogAnalyzer, IResultWriter, ILogger, ILogParser;
 import core.types : LogLine, LogStatistics;
-import log.parser : ILogParser;
 
 import std.array : array;
 import std.algorithm : sort;
 import utils.hash : getFastHash;
 import std.format : format;
-
-interface IResultWriter {
-    void write(LogLine[] results);
-}
-
-class CsvResultWriter : IResultWriter {
-    private string filePath;
-
-    this(string path) {
-        filePath = path;
-    }
-
-    void write(LogLine[] results) {
-        // Реализация записи в CSV
-    }
-
-    void close() {
-        // Ничего не делаем, так как файл закрывается после каждой записи
-    }
-}
+import std.algorithm : map;
 
 class LogAnalyzer : ILogAnalyzer {
 
@@ -92,8 +72,10 @@ class LogAnalyzer : ILogAnalyzer {
                 if (trimmedLine.endsWith("'")) {
                     logger.debug_("Found end of multiline context");
                     contextBuffer ~= trimmedLine[0..$-1];
-                    auto fullContext = contextBuffer[0];
-                    fullContext ~= "\n" ~ contextBuffer[1..$].join("\n");
+                    auto fullContext = contextBuffer[0].strip();
+                    if (contextBuffer.length > 1) {
+                        fullContext ~= "\n" ~ contextBuffer[1..$].map!(line => line.strip()).join("\n");
+                    }
                     logger.debug_("Full context: " ~ fullContext);
                     processFullContext(fullContext);
                     contextBuffer.length = 0;
