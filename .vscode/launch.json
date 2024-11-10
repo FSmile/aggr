@@ -4,20 +4,18 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [    
+// DUB build
         {
-            "type": "code-d",
+            "type": "mago-mi",
+           // "type": "cppdbg",
+          //  "MIMode": "gdb",
             "request": "launch",
             "name": "Debug D project",
             "cwd": "${workspaceFolder}",
-            "program": "./executableBinaryName"
-        },
-        {
-            "name": "Debug",
-            "type": "lldb",
-            "request": "launch",
-            "target": "./bin/executable",
-            "cwd": "${workspaceRoot}",
-            "valuesFormatting": "parseText"
+           // "program": "./aggr",
+            //"args": ["sample.log"],
+            "preLaunchTask": "dub build"
         }
+        
     ]
 }

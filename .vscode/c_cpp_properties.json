@@ -1,0 +1,29 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}\\Intermediate\\**",
+                "${workspaceFolder}\\Plugins\\**",
+                "${workspaceFolder}\\Source\\**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "UBT_COMPILED_PLATFORM=Windows",
+                "WITH_ENGINE=1",
+                "WITH_UNREAL_DEVELOPER_TOOLS=1",
+                "WITH_APPLICATION_CORE=1",
+                "WITH_COREUOBJECT=1"
+            ],
+            "windowsSdkVersion": "10.0.22000.0",
+            "compilerPath": "C:\\msys64\\ucrt64\\bin\\gcc.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64"
+        }
+    ],
+    "version": 4
+}
