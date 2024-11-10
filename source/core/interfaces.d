@@ -22,7 +22,7 @@ interface ILogger {
 
 // Интерфейс для обработки результатов
 interface IResultWriter {
-    void write(LogLine[] results) @safe;
+    void write(LogLine[] results);
     void close() @safe;
 }
 

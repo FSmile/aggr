@@ -35,6 +35,19 @@ unittest {
         assert(config.aggregate == "Count");
         assert(config.workerCount == 4);
     }
+
+    // Тест: проверка очистки значений по умолчанию при указании пользовательских полей группировки
+    {
+        string[] args = [
+            "aggr",
+            "input.log",
+            "--group-by=Usr"
+        ];
+        
+        auto config = Config.fromArgs(args);
+        assert(config.groupBy == ["Usr"]);
+        assert(config.groupBy.length == 1, "Should only contain user-specified field");
+    }
 } 
 
  

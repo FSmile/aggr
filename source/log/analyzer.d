@@ -8,6 +8,7 @@ import std.traits : isNumeric;
 import core.sync.mutex : Mutex;
 import core.atomic : atomicLoad, atomicOp;
 import core.time : Duration;
+import config.settings : Config;
 
 import core.interfaces : ILogAnalyzer, IResultWriter, ILogger, ILogParser;
 import core.types : LogLine, LogStatistics;
@@ -17,6 +18,10 @@ import std.algorithm : sort;
 import utils.hash : getFastHash;
 import std.format : format;
 import std.algorithm : map;
+
+import std.conv : to;
+import std.json : parseJSON;
+import std.file : isFile;
 
 class LogAnalyzer : ILogAnalyzer {
 
@@ -34,12 +39,14 @@ class LogAnalyzer : ILogAnalyzer {
         ILogger logger;
         string[] contextBuffer;
         shared Mutex contextMutex;
+        Config config;
     }
 
-    this(ILogParser parser, IResultWriter writer, ILogger logger, size_t workerCount = 1) {
+    this(ILogParser parser, IResultWriter writer, ILogger logger, Config config) {
         this.parser = parser;
         this.writer = writer;
         this.logger = logger;
+        this.config = config;
         itemsMutex = new shared Mutex();
         dataMutex = new shared Mutex();
         outputMutex = new shared Mutex();
@@ -55,6 +62,7 @@ class LogAnalyzer : ILogAnalyzer {
     }
 
     void processLine(string line, size_t workerId = 0) @trusted {
+        atomicOp!"+="(lineCount, 1);
         auto trimmedLine = line.stripRight();
         synchronized(contextMutex) {
             logger.debug_("Processing line: " ~ line);
@@ -99,10 +107,27 @@ class LogAnalyzer : ILogAnalyzer {
                 auto result = parser.parse(fullContext);
                 
                 if (!result.isNull) {
+                    logger.debug_("Parse result fields: " ~ result.get.keys.to!string);
+                    
+                    // Проверяем наличие всех необходимых полей
+                    bool hasAllFields = true;
+                    foreach (field; config.groupBy) {
+                        if (field !in result.get) {
+                            logger.debug_("Required field " ~ field ~ " not found in parsed data");
+                            hasAllFields = false;
+                            break;
+                        }
+                    }
+                    
+                    if (!hasAllFields) {
+                        return;
+                    }
+                    
                     logger.debug_("Parse result - Duration: " ~ result.get["Duration"] ~ 
                                 ", Context: " ~ result.get["Context"]);
                     
-                    auto hash = getFastHash(result.get["Context"]);
+                    auto hash = generateGroupKey(result.get);
+                    logger.debug_("Generated key for fields: " ~ result.get.to!string);
                     logger.debug_("Generated hash: " ~ hash);
                     
                     if (hash in items) {
@@ -112,7 +137,7 @@ class LogAnalyzer : ILogAnalyzer {
                         logger.debug_("Creating new item");
                         items[hash] = LogLine(
                             hash,
-                            result.get["Context"],
+                            result.get,
                             result.get["Duration"].to!long
                         );
                     }
@@ -150,5 +175,14 @@ class LogAnalyzer : ILogAnalyzer {
         return atomicLoad(lineCount);
     }
 
+    private string generateGroupKey(string[string] fields) {
+        string key = "";
+        foreach (field; config.groupBy) {
+            if (field in fields) {
+                key ~= fields[field] ~ "|";
+            }
+        }
+        return getFastHash(key);
+    }
 
 }

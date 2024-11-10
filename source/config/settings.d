@@ -19,17 +19,21 @@ struct Config {
     int workerCount = 1;                
     Duration timeout = 5.seconds;
     ILogger logger;
+    string[] multilineFields = ["Context"];  // Поля, поддерживающие многострочность
 
     static Config fromArgs(string[] args) {
         Config config;
         
         try {
+            // Сначала очищаем значения по умолчанию
+            config.groupBy = [];
+            
             auto helpInformation = getopt(
                 args,
                 "group-by|g",  "Fields to group by (default: Context)", &config.groupBy,
                 "aggregate|a", "Field to aggregate (default: Duration)", &config.aggregate,
                 "worker|w",    "Number of worker threads (default: 1)", &config.workerCount,
-                "output|o", "Output file path (default: input file name with .csv extension)", &config.outputPath,
+                "output|o", "Output file path (default: output.csv)", &config.outputPath,
                 "log|l", "Log file path (default: aggr.log)", &config.logPath
             );
 
@@ -44,6 +48,9 @@ struct Config {
             config.inputPath = args[1];
             
             // Устанавливаем значения по умолчанию если не заданы
+            if (config.groupBy.length == 0) {
+                config.groupBy = ["Context"];
+            }
             if (config.outputPath.empty) {
                 config.outputPath = "output.csv";
             }
