@@ -9,35 +9,14 @@ import core.sync.mutex : Mutex;
 import core.atomic : atomicLoad, atomicOp;
 import core.time : Duration;
 
-import core.interfaces : ILogAnalyzer, IResultWriter, ILogger;
+import core.interfaces : ILogAnalyzer, IResultWriter, ILogger, ILogParser;
 import core.types : LogLine, LogStatistics;
-import log.parser : ILogParser;
 
 import std.array : array;
 import std.algorithm : sort;
 import utils.hash : getFastHash;
 import std.format : format;
 import std.algorithm : map;
-
-interface IResultWriter {
-    void write(LogLine[] results);
-}
-
-class CsvResultWriter : IResultWriter {
-    private string filePath;
-
-    this(string path) {
-        filePath = path;
-    }
-
-    void write(LogLine[] results) {
-        // Реализация записи в CSV
-    }
-
-    void close() {
-        // Ничего не делаем, так как файл закрывается после каждой записи
-    }
-}
 
 class LogAnalyzer : ILogAnalyzer {
 

@@ -25,6 +25,8 @@ import std.parallelism : TaskPool, task;
 
 import factories.analyzer_factory;
 
+import version_info : VersionInfo;
+
 class Application {
     private ILogger logger;
     private Config config;
@@ -63,8 +65,9 @@ class Application {
 
 void main(string[] args) {
     try {
-        writeln("Log Aggregator v1.0.0");
-        writeln("Using D Compiler v", __VERSION__);
+        auto version_ = VersionInfo.current();
+        writeln(version_.toString());
+        
         auto app = new Application(args);
         app.run();
     } catch (ConfigException e) {

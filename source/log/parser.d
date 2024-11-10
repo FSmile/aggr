@@ -6,16 +6,13 @@ import std.algorithm : map, sum;
 import std.array : array;
 import std.string : replace, indexOf, strip, startsWith;
 import core.sync.mutex : Mutex;
-import core.interfaces : IResultWriter, ILogger;
+import core.interfaces : IResultWriter, ILogger, ILogParser;
 import core.types : LogLine;
 import std.regex;
 import std.array : split;
 import std.conv : to;
 import std.encoding : getBOM, BOM, BOMSeq;
 
-interface ILogParser {
-    Nullable!(string[string]) parse(string line);
-}
 
 class LogParser : ILogParser {
     private ILogger logger;
