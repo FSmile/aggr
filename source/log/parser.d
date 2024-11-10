@@ -83,8 +83,8 @@ class LogParser : ILogParser {
                 }
                 
                 logger.debug_("Found field: " ~ fieldName ~ " = " ~ fieldValue);
-                
-                if (groupFields.canFind(fieldName)) {
+                logger.debug_("Group fields: " ~ groupFields.to!string);
+                if (groupFields.canFind(fieldName)) {   
                     result[fieldName] = fieldValue;
                     logger.debug_("Added field to result: " ~ fieldName);
                 }

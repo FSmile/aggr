@@ -3,7 +3,7 @@ module app;
 import std.stdio;
 import std.string;
 import std.path;
-import std.conv : ConvException;
+import std.conv : to;
 
 import config.settings : Config;
 import core.interfaces : ILogger, ILogAnalyzer;
@@ -35,7 +35,7 @@ class Application {
     this(string[] args) {
         config = Config.fromArgs(args);
         logger = new FileLogger(config.logPath);
-        
+        logger.info("Group by: " ~ config.groupBy.to!string);
         logger.info("Starting initialization...");
         
         config.logger = logger;

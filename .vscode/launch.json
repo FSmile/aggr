@@ -6,15 +6,15 @@
     "configurations": [    
 // DUB build
         {
-            "type": "mago-mi",
+            "type": "code-d",
            // "type": "cppdbg",
           //  "MIMode": "gdb",
             "request": "launch",
             "name": "Debug D project",
             "cwd": "${workspaceFolder}",
-           // "program": "./aggr",
-            //"args": ["sample.log"],
-            "preLaunchTask": "dub build"
+            "program": "./aggr",
+            "args": ["sample.log", "-gUsr"],
+            "preLaunchTask": "dub build",
         }
         
     ]
