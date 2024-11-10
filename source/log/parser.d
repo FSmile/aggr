@@ -108,7 +108,7 @@ class CsvWriter : IResultWriter {
                     item.avg() / 1000,    // мкс -> мс
                     item.max / 1000,      // мкс -> мс
                     item.count,
-                    item.lastContext.replace("\n", " ").replace("\"", "\"\"")
+                    item.lastContext.replace("\n", " ").replace("\"", "\"\"").strip()
                 );
             }
             
