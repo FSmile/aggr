@@ -14,14 +14,14 @@ import std.algorithm : canFind;
 import std.array : split;
 struct Config {
     string inputPath;
-    string outputPath;
-    string logPath;
+    string outputPath = "output.csv";
+    string logPath = "aggr.log";
     string[] groupBy = ["Context"];     
     string aggregate = "Duration";       
     int workerCount = 1;                
     Duration timeout = 5.seconds;
     ILogger logger;
-    string[] multilineFields = [];  // Изменяем инициализацию на пустой массив
+    string[] multilineFields = ["Context"];
 
     static Config fromArgs(string[] args) {
         Config config;

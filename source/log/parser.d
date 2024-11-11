@@ -42,72 +42,42 @@ class LogParser : ILogParser {
         string[string] result;
         
         // Удаляем BOM если он есть
-        auto originalLine = line;
         line = removeBOM(line);
-        if (line != originalLine) {
-            logger.debug_("BOM removed from line");
-        }
         
-        logger.debug_("Parsing line: " ~ line);
-        
-        // Парсим Duration
+        // Парсим Duration (всегда первое поле до запятой)
         auto parts = line.split(",");
         if (parts.length >= 1) {
             auto durationStr = parts[0].strip();
-            logger.debug_("Duration string: " ~ durationStr);
-            
-            // Поддержка обоих форматов: "time-duration" и просто "duration"
             if (durationStr.indexOf("-") != -1) {
                 auto durationParts = durationStr.split("-");
                 if (durationParts.length == 2) {
                     result["Duration"] = durationParts[1];
-                    logger.debug_("Parsed Duration from time-duration: " ~ durationParts[1]);
                 }
             } else {
                 result["Duration"] = durationStr;
-                logger.debug_("Parsed Duration direct: " ~ durationStr);
             }
         }
 
-        // Парсим обычные поля
+        // Парсим все остальные поля (key=value)
         foreach (part; parts[1..$]) {
             auto kv = part.strip().split("=");
             if (kv.length == 2) {
                 auto fieldName = kv[0].strip;
                 auto fieldValue = kv[1].strip;
                 
-                // Пропускаем пустые значения
-                if (fieldValue.length == 0) {
-                    logger.debug_("Skipping empty value for field: " ~ fieldName);
-                    continue;
+                // Удаляем кавычки
+                if (fieldValue.startsWith("'") && fieldValue.endsWith("'")) {
+                    fieldValue = fieldValue[1..$-1];
                 }
                 
-                logger.debug_("Found field: " ~ fieldName ~ " = " ~ fieldValue);
-                logger.debug_("Group fields: " ~ groupFields.to!string);
-                if (groupFields.canFind(fieldName)) {   
-                    result[fieldName] = fieldValue;
-                    logger.debug_("Added field to result: " ~ fieldName);
-                }
+                // Добавляем поле в результат
+                result[fieldName] = fieldValue;
             }
         }
 
-        // Отдельно обрабатываем многострочный контекст
-        foreach (field; multilineFields) {
-            string marker = field ~ "='";
-            if (line.indexOf(marker) != -1 && groupFields.canFind(field)) {
-                auto fieldStart = line.indexOf(marker) + marker.length;
-                result[field] = parseMultilineValue(line[fieldStart..$]);
-            }
-        }
-
+        // Проверяем Duration
         if ("Duration" !in result) {
             return Nullable!(string[string]).init;
-        }
-
-        if (result.length > 0) {
-            foreach (key, value; result) {
-                logger.debug_("Parsed field: " ~ key ~ " = " ~ value);
-            }
         }
 
         return Nullable!(string[string])(result);

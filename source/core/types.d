@@ -2,6 +2,7 @@ module core.types;
 
 import core.time : Duration;
 import std.exception : enforce;
+import std.conv : to;
 
 // Уровни логирования
 enum LogLevel {
@@ -42,6 +43,7 @@ struct LogLine {
     this(string h, string[string] f, long d) @safe {
         hash = h;
         fields = f;
+        fields["Duration"] = d.to!string;
         duration = d;
         sum = d;
         max = d;

@@ -109,56 +109,40 @@ class LogAnalyzer : ILogAnalyzer {
     private void processFullContext(string fullContext) {
         synchronized(dataMutex) {
             try {
-                logger.debug_("Processing full context: " ~ fullContext);
                 auto result = parser.parse(fullContext);
                 
                 if (!result.isNull) {
-                    logger.debug_("Parse result fields: " ~ result.get.keys.to!string);
-                    logger.debug_("Required fields: " ~ config.groupBy.to!string);
-                    
-                    // Проверяем наличие всех необходимых полей
+                    // Проверяем наличие полей группировки
                     bool hasAllFields = true;
                     foreach (field; config.groupBy) {
                         if (field !in result.get) {
-                            logger.debug_("Required field " ~ field ~ " not found in parsed data");
                             hasAllFields = false;
                             break;
                         }
-                        logger.debug_("Found required field: " ~ field ~ " = " ~ result.get[field]);
                     }
                     
                     if (!hasAllFields) {
-                        logger.debug_("Skipping line due to missing required fields");
                         return;
                     }
                     
-                    logger.debug_("Parse result - Duration: " ~ result.get["Duration"] ~ 
-                                ", Context: " ~ result.get["Context"]);
-                    
                     auto hash = generateGroupKey(result.get);
-                    logger.debug_("Generated key for fields: " ~ result.get.to!string);
-                    logger.debug_("Generated hash: " ~ hash);
+                    if (hash.length == 0) {
+                        return;
+                    }
                     
+                    // Добавляем или обновляем элемент
                     if (hash in items) {
-                        logger.debug_("Updating existing item");
                         items[hash].updateStats(result.get["Duration"].to!long);
                     } else {
-                        logger.debug_("Creating new item with hash: " ~ hash);
                         items[hash] = LogLine(
                             hash,
                             result.get,
                             result.get["Duration"].to!long
                         );
-                        logger.debug_("Created new item with fields: " ~ items[hash].fields.to!string);
-                        logger.debug_("Item added, new items count: " ~ items.length.to!string);
                     }
-                    
-                    logger.debug_("Items count: " ~ items.length.to!string);
-                } else {
-                    logger.debug_("Parser returned null result");
                 }
             } catch (Exception e) {
-                logger.error("Error processing context: " ~ e.msg ~ "\n" ~ e.toString());
+                logger.error("Error processing context: " ~ e.msg);
             }
         }
     }
@@ -167,7 +151,7 @@ class LogAnalyzer : ILogAnalyzer {
         synchronized(dataMutex) {
             logger.debug_("Writing results, items count: " ~ items.length.to!string);
             if (items.length == 0) {
-                logger.error("No items to write!");
+                logger.debug_("No items to write");
                 return;
             }
             auto sortedItems = items.values.array();
@@ -197,6 +181,10 @@ class LogAnalyzer : ILogAnalyzer {
             if (field in fields) {
                 key ~= fields[field] ~ "|";
             }
+        }
+        if (key.length == 0) {
+            logger.debug_("Empty key generated for fields: " ~ fields.to!string);
+            return "";
         }
         return getFastHash(key);
     }
