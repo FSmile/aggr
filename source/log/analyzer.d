@@ -63,47 +63,29 @@ class LogAnalyzer : ILogAnalyzer {
         }
     }
 
-    void processLine(string line, size_t workerId = 0) @trusted {
-        atomicOp!"+="(lineCount, 1);
-        auto trimmedLine = line.stripRight();
-        synchronized(contextMutex) {
-            logger.debug_("Processing line: " ~ line);
-            logger.debug_("Trimmed line: " ~ trimmedLine);
-            logger.debug_("Line length: " ~ trimmedLine.length.to!string);
-            
-            if (config.multilineFields.length > 0 && 
-                config.multilineFields.any!(field => 
-                    config.groupBy.canFind(field) && 
-                    trimmedLine.indexOf(field ~ "='") != -1
-                )) {
-                logger.debug_("Found start of multiline field that is used in grouping");
-                contextBuffer = [line];
-                return;
+    void processLine(string line, ulong workerId = 0) @trusted {
+        auto trimmedLine = line.strip();
+        
+        if (contextBuffer.length > 0) {
+            contextBuffer ~= line;
+            if (trimmedLine.endsWith("'")) {
+                auto fullContext = contextBuffer.join("\n");
+                processFullContext(fullContext);
+                contextBuffer.length = 0;
             }
-            
-            if (contextBuffer.length > 0) {
-                logger.debug_("Context buffer length: " ~ contextBuffer.length.to!string);
-                if (trimmedLine.endsWith("'")) {
-                    logger.debug_("Found end of multiline context");
-                    contextBuffer ~= trimmedLine[0..$-1];
-                    auto fullContext = contextBuffer[0].strip();
-                    if (contextBuffer.length > 1) {
-                        fullContext ~= "\n" ~ contextBuffer[1..$].map!(line => line.strip()).join("\n");
-                    }
-                    logger.debug_("Full context: " ~ fullContext);
-                    processFullContext(fullContext);
-                    contextBuffer.length = 0;
-                    atomicOp!"+="(lineCount, 1);
-                } else {
-                    logger.debug_("Adding line to context buffer");
-                    contextBuffer ~= line;
-                }
-                return;
-            }
-            
-            logger.debug_("Processing as single line");
-            processFullContext(line);
+            return;
         }
+        
+        // Проверяем начало многострочного поля
+        foreach (field; config.multilineFields) {
+            if (trimmedLine.indexOf(field ~ "='") != -1) {
+                contextBuffer = [line];
+                logger.debug_("Found start of multiline field: " ~ field);
+                return;
+            }
+        }
+        
+        processFullContext(line);
     }
 
     private void processFullContext(string fullContext) {

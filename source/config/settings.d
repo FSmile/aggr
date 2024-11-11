@@ -23,7 +23,7 @@ struct Config {
     ILogger logger;
     string[] multilineFields = ["Context"];
 
-    static Config fromArgs(string[] args) {
+    static Config fromArgs(string[] args, bool skipValidation = false) {
         Config config;
         
         try {
@@ -34,6 +34,10 @@ struct Config {
                 args,
                 "group-by|g",  "Fields to group by (default: Context)", (string opt, string value) {
                     config.groupBy = value.split(",");
+                    // Если Context в списке группировки, добавляем его в многострочные поля
+                    if (config.groupBy.canFind("Context")) {
+                        config.multilineFields ~= "Context";
+                    }
                 },
                 "aggregate|a", "Field to aggregate (default: Duration)", &config.aggregate,
                 "worker|w",    "Number of worker threads (default: 1)", &config.workerCount,
@@ -63,7 +67,9 @@ struct Config {
                 config.logPath = "aggr.log";
             }
             
-            config.validate();
+            if (!skipValidation) {
+                config.validate();
+            }
             
         } catch (GetOptException e) {
             throw new ConfigException("Invalid command line arguments: " ~ e.msg);

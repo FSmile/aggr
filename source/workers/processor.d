@@ -115,6 +115,12 @@ class DataProcessor {
             processors.stop();
         }
     }
+
+    void waitForCompletion() {
+        if (processors !is null) {
+            processors.finish(true);
+        }
+    }
 } 
 
  

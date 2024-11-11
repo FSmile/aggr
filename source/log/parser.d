@@ -14,6 +14,7 @@ import std.conv : to;
 import std.encoding : getBOM, BOM, BOMSeq;
 import std.algorithm : canFind,startsWith, endsWith;
 import config.settings : Config;
+import std.string;
 
 class LogParser : ILogParser {
     private ILogger logger;
@@ -45,39 +46,50 @@ class LogParser : ILogParser {
         line = removeBOM(line);
         
         // Парсим Duration (всегда первое поле до запятой)
-        auto parts = line.split(",");
-        if (parts.length >= 1) {
-            auto durationStr = parts[0].strip();
-            if (durationStr.indexOf("-") != -1) {
-                auto durationParts = durationStr.split("-");
-                if (durationParts.length == 2) {
-                    result["Duration"] = durationParts[1];
+        auto durationEnd = line.indexOf(",");
+        if (durationEnd == -1) return Nullable!(string[string]).init;
+        
+        auto durationStr = line[0..durationEnd].strip();
+        if (durationStr.indexOf("-") != -1) {
+            auto durationParts = durationStr.split("-");
+            if (durationParts.length == 2) {
+                result["Duration"] = durationParts[1];
+            }
+        } else {
+            result["Duration"] = durationStr;
+        }
+
+        // Ищем начало многострочного поля
+        foreach (field; multilineFields) {
+            auto fieldStart = line.indexOf(field ~ "='");
+            if (fieldStart != -1) {
+                // Находим конец многострочного значения (последняя кавычка в строке)
+                auto valueStart = fieldStart + field.length + 2; // +2 для "='"
+                auto valueEnd = line.lastIndexOf("'");
+                
+                if (valueEnd > valueStart) {
+                    string value = line[valueStart..valueEnd];
+                    result[field] = parseMultilineValue(value);
+                    
+                    // После нахождения многострочного поля прекращаем поиск
+                    return Nullable!(string[string])(result);
                 }
-            } else {
-                result["Duration"] = durationStr;
             }
         }
 
-        // Парсим все остальные поля (key=value)
-        foreach (part; parts[1..$]) {
+        // Парсим обычные поля только если не нашли многострочное
+        foreach (part; line[durationEnd + 1..$].split(",")) {
             auto kv = part.strip().split("=");
-            if (kv.length == 2) {
+            if (kv.length == 2 && groupFields.canFind(kv[0].strip)) {
                 auto fieldName = kv[0].strip;
                 auto fieldValue = kv[1].strip;
                 
-                // Удаляем кавычки
                 if (fieldValue.startsWith("'") && fieldValue.endsWith("'")) {
                     fieldValue = fieldValue[1..$-1];
                 }
                 
-                // Добавляем поле в результат
                 result[fieldName] = fieldValue;
             }
-        }
-
-        // Проверяем Duration
-        if ("Duration" !in result) {
-            return Nullable!(string[string]).init;
         }
 
         return Nullable!(string[string])(result);
@@ -91,6 +103,8 @@ class LogParser : ILogParser {
         if (value.endsWith("'")) {
             value = value[0..$-1];
         }
+        // Заменяем двойные кавычки на одинарные
+        value = value.replace("''", "'");
         return value;
     }
 }
