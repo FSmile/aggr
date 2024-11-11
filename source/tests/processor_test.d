@@ -6,7 +6,7 @@ import std.string : indexOf;
 import std.conv : ConvException;
 import std.algorithm : sort;
 import config.settings : Config;
-import core.interfaces : ILogAnalyzer, ILogger;
+import core.interfaces : ILogAnalyzer, ILogger, IApplication;
 import core.types : LogStatistics, LogLevel;
 import workers.processor : DataProcessor;
 import std.path : buildPath;
@@ -73,6 +73,18 @@ class TestLogger : ILogger {
     }
 }
 
+class MockApplication : IApplication {
+    private bool errorReported = false;
+    
+    void reportError() {
+        errorReported = true;
+    }
+    
+    bool wasErrorReported() {
+        return errorReported;
+    }
+}
+
 unittest {
     // Устанавливаем UTF-8 для консоли
     version(Windows) {
@@ -113,7 +125,8 @@ unittest {
     writeln("Конфигурация создана: ", config);
     
     auto analyzer = new LogAnalyzerMock();
-    auto processor = new DataProcessor(config, analyzer);
+    auto mockApp = new MockApplication();
+    auto processor = new DataProcessor(config, analyzer, mockApp);
     writeln("Процессор создан");
     
     try {

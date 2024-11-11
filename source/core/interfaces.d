@@ -37,3 +37,8 @@ interface IMetricsCollector {
 interface ILogParser {
     Nullable!(string[string]) parse(string line);
 }
+
+// Интерфейс для приложения
+interface IApplication {
+    void reportError();
+}

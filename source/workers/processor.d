@@ -1,6 +1,6 @@
 module workers.processor;
 
-import core.interfaces : ILogger;
+import core.interfaces : ILogger, ILogAnalyzer, IApplication;
 import core.types;
 import core.queue;
 import utils.logging;
@@ -23,14 +23,16 @@ class DataProcessor {
         InputBuffer buffer;
         string inputPath;
         ILogger logger;
+        IApplication app;
     }
 
-    this(Config config, ILogAnalyzer analyzer) {
+    this(Config config, ILogAnalyzer analyzer, IApplication app = null) {
         this.analyzer = analyzer;
         this.processors = new TaskPool(config.workerCount);
         this.buffer = new InputBuffer();
         this.inputPath = config.inputPath;
         this.logger = config.logger;
+        this.app = app;
     }
 
     void start() {
@@ -49,6 +51,9 @@ class DataProcessor {
             analyzer.writeResults();
         } catch (Exception e) {
             logger.error("Processing failed", e);
+            if (app !is null) {
+                app.reportError();
+            }
         }
     }
 

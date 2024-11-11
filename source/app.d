@@ -6,7 +6,7 @@ import std.path;
 import std.conv : to;
 
 import config.settings : Config;
-import core.interfaces : ILogger, ILogAnalyzer;
+import core.interfaces : ILogger, ILogAnalyzer, IApplication;
 import utils.errors : ConfigException;
 
 import log.analyzer : LogAnalyzer;
@@ -27,10 +27,11 @@ import factories.analyzer_factory;
 
 import version_info : VersionInfo;
 
-class Application {
+class Application : IApplication {
     private ILogger logger;
     private Config config;
     private DataProcessor processor;
+    private bool hasError = false;
 
     this(string[] args) {
         config = Config.fromArgs(args);
@@ -46,21 +47,28 @@ class Application {
         auto analyzer = factory.createAnalyzer(config);
         
         logger.info("Creating processor...");
-        processor = new DataProcessor(config, analyzer);
+        processor = new DataProcessor(config, analyzer, this);
         logger.info("Initialization completed");
     }
 
-    void run() {
+    bool run() {
         try {
             logger.info("Starting application...");
             processor.start();
             processor.waitForCompletion();
             logger.info("Application finished");
+            return !hasError;
         } catch (Exception e) {
             logger.error("Application error", e);
+            hasError = true;
+            return false;
         } finally {
             processor.shutdown();
         }
+    }
+
+    void reportError() {
+        hasError = true;
     }
 }
 
@@ -70,8 +78,8 @@ int main(string[] args) {
         writeln(version_.toString());
         
         auto app = new Application(args);
-        app.run();
-        return 0;
+        bool success = app.run();
+        return success ? 0 : 1;
     } catch (ConfigException e) {
         writeln("Ошибка конфигурации: ", e.msg);
         stderr.writeln("Configuration error: ", e.msg);
