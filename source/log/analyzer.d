@@ -71,6 +71,9 @@ class LogAnalyzer : ILogAnalyzer {
             
             if (trimmedLine.indexOf("Context='") != -1) {
                 logger.debug_("Found start of multiline context");
+                // Сначала обработаем все остальные поля в текущей строке
+               // processFullContext(line);
+                // Затем начнем собирать многострочный контекст
                 contextBuffer = [line];
                 return;
             }
