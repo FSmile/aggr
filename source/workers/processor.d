@@ -78,6 +78,12 @@ class DataProcessor {
                 processInput(file);
             }
             logger.info("Processing completed");
+            // Ждем завершения всех задач
+            if (!waitForCompletion()) {
+            logger.error("Failed to complete all tasks");
+                return;
+            }   
+            // Записываем результаты только после завершения всех задач
             analyzer.writeResults();
         } catch (Exception e) {
             logger.error("Processing failed", e);

@@ -107,6 +107,7 @@ class LogAnalyzer : ILogAnalyzer {
                     }
                     
                     if (!hasAllFields) {
+                        logger.warning("Missing required grouping fields. Required: " ~ config.groupBy.to!string);
                         return;
                     }
                     
