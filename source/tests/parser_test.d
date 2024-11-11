@@ -30,7 +30,8 @@ unittest {
 
         // Тест 1: Парсинг Duration с временной меткой
         {
-            auto result = parser.parse("40:33.299009-1515852,DBPOSTGRS,6,Usr=EventIntegrationWritingToKafka,RowsAffected=0");
+            auto result = parser.parse("40:33.299009-1515852,DBPOSTGRS,6,Usr=EventIntegrationWritingToKafka," ~
+                                                                                            "RowsAffected=0");
             assert(!result.isNull);
             assert(result.get["Duration"] == "1515852");
             assert(result.get["Usr"] == "EventIntegrationWritingToKafka");

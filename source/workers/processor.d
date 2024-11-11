@@ -101,7 +101,6 @@ class DataProcessor {
             
             logger.info("Finished reading input file. Total lines read: " ~ totalLines.to!string);
             processors.finish(true);
-            Thread.sleep(100.msecs);
         } catch (Exception e) {
             logger.error("Error in processInput", e);
             throw e;
@@ -110,9 +109,12 @@ class DataProcessor {
 
     void shutdown() {
         try {
-            processors.finish(true);
-        } finally {
-            processors.stop();
+            if (processors !is null) {
+                processors.finish(true);
+                processors.stop();
+            }
+        } catch (Exception e) {
+            logger.error("Error during shutdown", e);
         }
     }
 

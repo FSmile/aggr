@@ -54,6 +54,7 @@ class Application {
         try {
             logger.info("Starting application...");
             processor.start();
+            processor.waitForCompletion();
             logger.info("Application finished");
         } catch (Exception e) {
             logger.error("Application error", e);
@@ -63,13 +64,14 @@ class Application {
     }
 }
 
-void main(string[] args) {
+int main(string[] args) {
     try {
         auto version_ = VersionInfo.current();
         writeln(version_.toString());
         
         auto app = new Application(args);
         app.run();
+        return 0;
     } catch (ConfigException e) {
         writeln("Ошибка конфигурации: ", e.msg);
         stderr.writeln("Configuration error: ", e.msg);
@@ -80,11 +82,11 @@ void main(string[] args) {
         writeln("  --worker|-w      Number of worker threads (default: 1)");
         writeln("  --output|-o      Output file path (default: output.csv)");
         writeln("  --log|-l         Log file path (default: aggr.log)");
-        return;
+        return 1;
     } catch (Exception e) {
         writeln("Критическая ошибка: ", e.msg);
         debug writeln(e.toString());
-        return;
+        return 1;
     }
 }
 
