@@ -12,6 +12,9 @@ import core.buffer : InputBuffer;
 import std.stdio : stdin, File;
 import std.array : array;
 import core.time : Duration;
+import std.conv : to;
+import core.thread : Thread;
+import core.time : msecs;
 
 class DataProcessor {
     private {
@@ -50,41 +53,59 @@ class DataProcessor {
     }
 
     private void processInput(File input) {
-        enum BATCH_SIZE = 1000;
-        string[] batch;
-        batch.reserve(BATCH_SIZE);
-        
-        char[] buf;
-        while (input.readln(buf)) {
-            batch ~= buf.idup;
-            if (batch.length >= BATCH_SIZE) {
-                auto lines = batch.dup;
+        try {
+            if (input.size() == 0) {
+                logger.error("Input file is empty or does not exist");
+                return;
+            }
+
+            logger.info("Starting to read input file...");
+            enum BATCH_SIZE = 1000;
+            string[] batch;
+            batch.reserve(BATCH_SIZE);
+            
+            char[] buf;
+            size_t totalLines = 0;
+            
+            while (input.readln(buf)) {
+                totalLines++;
+                batch ~= buf.idup;
+                if (batch.length >= BATCH_SIZE) {
+                    logger.debug_("Processing batch of " ~ batch.length.to!string ~ " lines");
+                    auto lines = batch.dup;
+                    processors.put(task(() {
+                        foreach(line; lines) {
+                            try {
+                                analyzer.processLine(line);
+                            } catch (Exception e) {
+                                logger.error("Error processing line: " ~ line, e);
+                            }
+                        }
+                    }));
+                    batch.length = 0;
+                }
+            }
+            
+            if (batch.length > 0) {
+                logger.debug_("Processing final batch of " ~ batch.length.to!string ~ " lines");
                 processors.put(task(() {
-                    foreach(line; lines) {
+                    foreach(line; batch) {
                         try {
                             analyzer.processLine(line);
                         } catch (Exception e) {
-                            logger.error("Error processing line batch", e);
+                            logger.error("Error processing line: " ~ line, e);
                         }
                     }
                 }));
-                batch.length = 0;
             }
+            
+            logger.info("Finished reading input file. Total lines read: " ~ totalLines.to!string);
+            processors.finish(true);
+            Thread.sleep(100.msecs);
+        } catch (Exception e) {
+            logger.error("Error in processInput", e);
+            throw e;
         }
-        
-        if (batch.length > 0) {
-            processors.put(task(() {
-                foreach(line; batch) {
-                    try {
-                        analyzer.processLine(line);
-                    } catch (Exception e) {
-                        logger.error("Error processing line batch", e);
-                    }
-                }
-            }));
-        }
-        
-        processors.finish(true);
     }
 
     void shutdown() {

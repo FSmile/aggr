@@ -92,9 +92,12 @@ class LogParser : ILogParser {
         }
 
         // Отдельно обрабатываем многострочный контекст
-        if (line.indexOf("Context='") != -1 && groupFields.canFind("Context")) {
-            auto contextStart = line.indexOf("Context='") + "Context='".length;
-            result["Context"] = parseMultilineValue(line[contextStart..$]);
+        foreach (field; multilineFields) {
+            string marker = field ~ "='";
+            if (line.indexOf(marker) != -1 && groupFields.canFind(field)) {
+                auto fieldStart = line.indexOf(marker) + marker.length;
+                result[field] = parseMultilineValue(line[fieldStart..$]);
+            }
         }
 
         if ("Duration" !in result) {

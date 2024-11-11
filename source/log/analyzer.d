@@ -22,6 +22,8 @@ import std.algorithm : map;
 import std.conv : to;
 import std.json : parseJSON;
 import std.file : isFile;
+import std.algorithm : any;
+import std.algorithm : canFind;
 
 class LogAnalyzer : ILogAnalyzer {
 
@@ -69,11 +71,12 @@ class LogAnalyzer : ILogAnalyzer {
             logger.debug_("Trimmed line: " ~ trimmedLine);
             logger.debug_("Line length: " ~ trimmedLine.length.to!string);
             
-            if (trimmedLine.indexOf("Context='") != -1) {
-                logger.debug_("Found start of multiline context");
-                // Сначала обработаем все остальные поля в текущей строке
-               // processFullContext(line);
-                // Затем начнем собирать многострочный контекст
+            if (config.multilineFields.length > 0 && 
+                config.multilineFields.any!(field => 
+                    config.groupBy.canFind(field) && 
+                    trimmedLine.indexOf(field ~ "='") != -1
+                )) {
+                logger.debug_("Found start of multiline field that is used in grouping");
                 contextBuffer = [line];
                 return;
             }
@@ -111,6 +114,7 @@ class LogAnalyzer : ILogAnalyzer {
                 
                 if (!result.isNull) {
                     logger.debug_("Parse result fields: " ~ result.get.keys.to!string);
+                    logger.debug_("Required fields: " ~ config.groupBy.to!string);
                     
                     // Проверяем наличие всех необходимых полей
                     bool hasAllFields = true;
@@ -120,9 +124,11 @@ class LogAnalyzer : ILogAnalyzer {
                             hasAllFields = false;
                             break;
                         }
+                        logger.debug_("Found required field: " ~ field ~ " = " ~ result.get[field]);
                     }
                     
                     if (!hasAllFields) {
+                        logger.debug_("Skipping line due to missing required fields");
                         return;
                     }
                     
@@ -137,12 +143,14 @@ class LogAnalyzer : ILogAnalyzer {
                         logger.debug_("Updating existing item");
                         items[hash].updateStats(result.get["Duration"].to!long);
                     } else {
-                        logger.debug_("Creating new item");
+                        logger.debug_("Creating new item with hash: " ~ hash);
                         items[hash] = LogLine(
                             hash,
                             result.get,
                             result.get["Duration"].to!long
                         );
+                        logger.debug_("Created new item with fields: " ~ items[hash].fields.to!string);
+                        logger.debug_("Item added, new items count: " ~ items.length.to!string);
                     }
                     
                     logger.debug_("Items count: " ~ items.length.to!string);
@@ -157,6 +165,11 @@ class LogAnalyzer : ILogAnalyzer {
 
     void writeResults() @trusted {
         synchronized(dataMutex) {
+            logger.debug_("Writing results, items count: " ~ items.length.to!string);
+            if (items.length == 0) {
+                logger.error("No items to write!");
+                return;
+            }
             auto sortedItems = items.values.array();
             sortedItems.sort!((a, b) => a.avg > b.avg);
             writer.write(sortedItems);

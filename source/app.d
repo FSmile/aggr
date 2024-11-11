@@ -16,8 +16,8 @@ import metrics.collector : MetricsCollector;
 import log.parser : LogParser, CsvWriter;
 import utils.errors : ApplicationException;
 import core.queue : Queue;
-import vibe.core.core;
-import vibe.core.concurrency;
+//import vibe.core.core;
+//import vibe.core.concurrency;
 import std.stdio : stdin;
 
 import core.buffer : InputBuffer;

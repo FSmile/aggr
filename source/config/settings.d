@@ -10,6 +10,8 @@ import std.file : exists;
 import std.format : format;
 import core.interfaces : ILogger;
 
+import std.algorithm : canFind;
+import std.array : split;
 struct Config {
     string inputPath;
     string outputPath;
@@ -19,18 +21,20 @@ struct Config {
     int workerCount = 1;                
     Duration timeout = 5.seconds;
     ILogger logger;
-    string[] multilineFields = ["Context"];  // Поля, поддерживающие многострочность
+    string[] multilineFields = [];  // Изменяем инициализацию на пустой массив
 
     static Config fromArgs(string[] args) {
         Config config;
         
         try {
-            // Сначала очищаем значения по умолчанию
             config.groupBy = [];
+            config.multilineFields = []; // Очищаем значения по умолчанию
             
             auto helpInformation = getopt(
                 args,
-                "group-by|g",  "Fields to group by (default: Context)", &config.groupBy,
+                "group-by|g",  "Fields to group by (default: Context)", (string opt, string value) {
+                    config.groupBy = value.split(",");
+                },
                 "aggregate|a", "Field to aggregate (default: Duration)", &config.aggregate,
                 "worker|w",    "Number of worker threads (default: 1)", &config.workerCount,
                 "output|o", "Output file path (default: output.csv)", &config.outputPath,
@@ -50,6 +54,7 @@ struct Config {
             // Устанавливаем значения по умолчанию если не заданы
             if (config.groupBy.length == 0) {
                 config.groupBy = ["Context"];
+                config.multilineFields = ["Context"];  // Добавляем Context в multiline только если он используется по умолчанию
             }
             if (config.outputPath.empty) {
                 config.outputPath = "output.csv";
@@ -76,6 +81,11 @@ struct Config {
         if (workerCount < 1 || workerCount > 32) {
             throw new ConfigException("Worker count must be between 1 and 32, got: %d"
                 .format(workerCount));
+        }
+        foreach (field; multilineFields) {
+            if (!groupBy.canFind(field)) {
+                throw new ConfigException("Multiline field '" ~ field ~ "' must be included in group-by fields");
+            }
         }
     }
 } 

@@ -7,15 +7,12 @@
 // DUB build
         {
             "type": "code-d",
-           // "type": "cppdbg",
-          //  "MIMode": "gdb",
             "request": "launch",
             "name": "Debug D project",
             "cwd": "${workspaceFolder}",
             "program": "./aggr",
-            "args": ["sample.log", "-gUsr"],
+            "args": ["sample.log", "-g", "Usr,Context"],
             "preLaunchTask": "dub build",
         }
-        
     ]
 }
