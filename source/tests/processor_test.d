@@ -135,16 +135,26 @@ unittest {
         
         writeln("Начало обработки файла");
         processor.start();
-        Thread.sleep(100.msecs);
+        
+        // Ждем завершения с таймаутом
+        bool completed = processor.waitForCompletion();
+        assert(completed, "Обработка не завершилась в течение таймаута");
+        
         writeln("Обработка файла завершена");
         
         auto processedLines = analyzer.getProcessedLines();
         writeln("Обработано строк: ", processedLines);
         assert(processedLines == 1, "Неверное количество обработанных строк");
         
+        // Проверяем, не было ли ошибок
+        assert(!mockApp.wasErrorReported(), "Были обнаружены ошибки при обработке");
+        
     } catch (Exception e) {
         writeln("Ошибка при обработке файла: ", e.toString());
         assert(false, "Ошибка при обработке файла: " ~ e.msg);
+    } finally {
+        // Гарантированное завершение
+        processor.shutdown();
     }
 } 
 

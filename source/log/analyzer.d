@@ -64,6 +64,8 @@ class LogAnalyzer : ILogAnalyzer {
     }
 
     void processLine(string line, ulong workerId = 0) @trusted {
+        import core.atomic : atomicOp;
+        atomicOp!"+="(lineCount, 1); 
         auto trimmedLine = line.strip();
         
         if (contextBuffer.length > 0) {
@@ -94,6 +96,7 @@ class LogAnalyzer : ILogAnalyzer {
                 auto result = parser.parse(fullContext);
                 
                 if (!result.isNull) {
+                     logger.debug_("Parsed result: " ~ result.get.to!string);
                     // Проверяем наличие полей группировки
                     bool hasAllFields = true;
                     foreach (field; config.groupBy) {

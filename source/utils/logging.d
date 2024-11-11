@@ -8,50 +8,45 @@ import core.types : LogLevel;
 import std.format : format;
 
 class FileLogger : ILogger {
-    private {
-        File logFile;
-        shared Mutex mutex;
-    }
+    private File logFile;
+    private string logPath;
 
     this(string path) {
+        logPath = path;
         logFile = File(path, "w");
-        mutex = new shared Mutex();
-    }
-
-    ~this() {
-        synchronized(mutex) {
-            if (logFile.isOpen) {
-                logFile.close();
-            }
-        }
-    }
-
-    private void writeLog(LogLevel level, string message) {
-        synchronized(mutex) {
-            auto timestamp = Clock.currTime();
-            logFile.writefln("%s [%s] %s", timestamp.toSimpleString(), level, message);
-            logFile.flush();
-        }
     }
 
     void log(LogLevel level, string message, string file = __FILE__, int line = __LINE__) {
-        writeLog(level, format("%s(%d): %s", file, line, message));
+        auto timestamp = Clock.currTime();
+        logFile.writefln("%s [%s] %s", timestamp, level, message);
+        logFile.flush();
     }
 
     void error(string message, Exception e = null) {
         if (e !is null) {
-            writeLog(LogLevel.ERROR, format("%s: %s\n%s", message, e.msg, e.toString()));
+            log(LogLevel.ERROR, message ~ ": " ~ e.msg);
+            debug log(LogLevel.ERROR, e.toString());
         } else {
-            writeLog(LogLevel.ERROR, message);
+            log(LogLevel.ERROR, message);
         }
     }
 
+    void warning(string message) {
+        log(LogLevel.WARNING, message);
+    }
+
     void info(string message) {
-        writeLog(LogLevel.INFO, message);
+        log(LogLevel.INFO, message);
     }
 
     void debug_(string message) {
-        writeLog(LogLevel.DEBUG, message);
+        log(LogLevel.DEBUG, message);
+    }
+
+    ~this() {
+        if (logFile.isOpen) {
+            logFile.close();
+        }
     }
 }
 

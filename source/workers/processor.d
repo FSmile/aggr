@@ -15,8 +15,15 @@ import core.time : Duration;
 import std.conv : to;
 import core.thread : Thread;
 import core.time : msecs;
+import core.sync.mutex : Mutex;
+import core.sync.condition : Condition;
+import core.atomic : atomicOp;
+import core.time : seconds;
 
 class DataProcessor {
+    private enum BATCH_SIZE = 10_000;
+    private enum DEFAULT_TIMEOUT = 5.seconds;
+
     private {
         ILogAnalyzer analyzer;
         TaskPool processors;
@@ -24,6 +31,11 @@ class DataProcessor {
         string inputPath;
         ILogger logger;
         IApplication app;
+        
+        shared size_t activeTaskCount = 0;
+        shared Mutex taskMutex;
+        shared Condition taskCondition;
+        Duration timeout = DEFAULT_TIMEOUT;
     }
 
     this(Config config, ILogAnalyzer analyzer, IApplication app = null) {
@@ -33,6 +45,24 @@ class DataProcessor {
         this.inputPath = config.inputPath;
         this.logger = config.logger;
         this.app = app;
+        
+        taskMutex = new shared Mutex();
+        taskCondition = new shared Condition(taskMutex);
+    }
+
+    private void incrementTaskCount() {
+        synchronized(taskMutex) {
+            atomicOp!"+="(activeTaskCount, 1);
+        }
+    }
+
+    private void decrementTaskCount() {
+        synchronized(taskMutex) {
+            atomicOp!"-="(activeTaskCount, 1);
+            if (activeTaskCount == 0) {
+                taskCondition.notify();
+            }
+        }
     }
 
     void start() {
@@ -59,73 +89,98 @@ class DataProcessor {
 
     private void processInput(File input) {
         try {
-            if (input.size() == 0) {
-                logger.error("Input file is empty or does not exist");
-                return;
-            }
+            string[] batch;
+            size_t totalLines;
 
             logger.info("Starting to read input file...");
-            enum BATCH_SIZE = 1000;
-            string[] batch;
-            batch.reserve(BATCH_SIZE);
             
-            char[] buf;
-            size_t totalLines = 0;
-            
-            while (input.readln(buf)) {
+            foreach (line; input.byLine) {
+                batch ~= line.idup;
                 totalLines++;
-                batch ~= buf.idup;
+                
                 if (batch.length >= BATCH_SIZE) {
-                    logger.debug_("Processing batch of " ~ batch.length.to!string ~ " lines");
-                    auto lines = batch.dup;
-                    processors.put(task(() {
-                        foreach(line; lines) {
-                            try {
-                                analyzer.processLine(line);
-                            } catch (Exception e) {
-                                logger.error("Error processing line: " ~ line, e);
-                            }
-                        }
-                    }));
+                    processBatch(batch);
                     batch.length = 0;
                 }
             }
             
             if (batch.length > 0) {
                 logger.debug_("Processing final batch of " ~ batch.length.to!string ~ " lines");
-                processors.put(task(() {
-                    foreach(line; batch) {
-                        try {
-                            analyzer.processLine(line);
-                        } catch (Exception e) {
-                            logger.error("Error processing line: " ~ line, e);
-                        }
-                    }
-                }));
+                processBatch(batch);
             }
             
             logger.info("Finished reading input file. Total lines read: " ~ totalLines.to!string);
-            processors.finish(true);
         } catch (Exception e) {
             logger.error("Error in processInput", e);
+            if (app !is null) app.reportError();
             throw e;
+        }
+    }
+
+    private void processBatch(string[] lines) {
+        incrementTaskCount();
+        processors.put(task(() {
+            try {
+                foreach(line; lines) {
+                    try {
+                        analyzer.processLine(line);
+                    } catch (Exception e) {
+                        logger.error("Error processing line: " ~ line, e);
+                        if (app !is null) app.reportError();
+                    }
+                }
+            } finally {
+                decrementTaskCount();
+            }
+        }));
+    }
+
+    bool waitForCompletion() {
+        try {
+            if (processors !is null) {
+                logger.debug_("Waiting for tasks completion. Active tasks: " ~ activeTaskCount.to!string);
+                
+                // Ждем завершения всех задач с таймаутом
+                bool completed = true;
+                synchronized(taskMutex) {
+                    if (activeTaskCount > 0) {
+                        completed = taskCondition.wait(timeout);
+                    }
+                }
+                
+                if (!completed) {
+                    logger.error("Timeout waiting for tasks completion");
+                    return false;
+                }
+                
+                // Завершаем пул потоков
+                processors.finish(true);
+                logger.debug_("All tasks completed successfully");
+                return true;
+            }
+            return true;
+        } catch (Exception e) {
+            logger.error("Error during wait for completion", e);
+            return false;
         }
     }
 
     void shutdown() {
         try {
             if (processors !is null) {
-                processors.finish(true);
+                // Пытаемся завершить корректно
+                if (!waitForCompletion()) {
+                    logger.warning("Forcing shutdown with incomplete tasks");
+                }
+                
+                // Останавливаем пул в любом случае
                 processors.stop();
+                processors = null;
+                
+                logger.debug_("Processor shutdown completed");
             }
         } catch (Exception e) {
             logger.error("Error during shutdown", e);
-        }
-    }
-
-    void waitForCompletion() {
-        if (processors !is null) {
-            processors.finish(true);
         }
     }
 } 

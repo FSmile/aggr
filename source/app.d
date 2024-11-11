@@ -27,6 +27,9 @@ import factories.analyzer_factory;
 
 import version_info : VersionInfo;
 
+import core.thread : Thread;
+import core.time : msecs;
+
 class Application : IApplication {
     private ILogger logger;
     private Config config;
@@ -55,7 +58,11 @@ class Application : IApplication {
         try {
             logger.info("Starting application...");
             processor.start();
+            
+            // Ждем завершения обработки
             processor.waitForCompletion();
+            Thread.sleep(100.msecs);  // Даем время на финализацию
+
             logger.info("Application finished");
             return !hasError;
         } catch (Exception e) {
@@ -64,6 +71,7 @@ class Application : IApplication {
             return false;
         } finally {
             processor.shutdown();
+            Thread.sleep(50.msecs);  // Даем время на освобождение ресурсов
         }
     }
 

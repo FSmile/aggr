@@ -16,6 +16,7 @@ interface ILogAnalyzer {
 interface ILogger {
     void log(LogLevel level, string message, string file = __FILE__, int line = __LINE__);
     void error(string message, Exception e = null);
+    void warning(string message);
     void info(string message);
     void debug_(string message);
 }
