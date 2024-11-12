@@ -72,7 +72,7 @@ class LogParser : ILogParser {
                     result[field] = parseMultilineValue(value);
                     
                     // После нахождения многострочного поля прекращаем поиск
-                    return Nullable!(string[string])(result);
+                   // return Nullable!(string[string])(result);
                 }
             }
         }
