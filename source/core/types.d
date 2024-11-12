@@ -2,6 +2,7 @@ module core.types;
 
 import core.time : Duration;
 import std.exception : enforce;
+import std.conv : to;
 
 // Уровни логирования
 enum LogLevel {
@@ -29,7 +30,7 @@ struct MetricsSnapshot {
 
 struct LogLine {
     string hash;
-    string lastContext;
+    string[string] fields;  // Хранение всех полей группировки
     long duration;
     int count = 1;
     long sum;
@@ -39,9 +40,10 @@ struct LogLine {
         return sum / count;
     }
 
-    this(string h, string c, long d) @safe {
+    this(string h, string[string] f, long d) @safe {
         hash = h;
-        lastContext = c;
+        fields = f;
+        fields["Duration"] = d.to!string;
         duration = d;
         sum = d;
         max = d;
@@ -58,4 +60,10 @@ struct DataBuffer {
     string[] lines;
     size_t startIdx;
     size_t endIdx;
+}
+
+struct FieldInfo {
+    string name;
+    string value;
+    bool isMultiline;
 }

@@ -3,21 +3,16 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [
+    "configurations": [    
+// DUB build
         {
             "type": "code-d",
             "request": "launch",
             "name": "Debug D project",
             "cwd": "${workspaceFolder}",
-            "program": "./executableBinaryName"
-        },
-        {
-            "name": "Debug",
-            "type": "gdb",
-            "request": "launch",
-            "target": "./bin/executable",
-            "cwd": "${workspaceRoot}",
-            "valuesFormatting": "parseText"
+            "program": "./aggr",
+            "args": ["sample.log", "-g", "Usr,Context"],
+            "preLaunchTask": "dub build",
         }
     ]
 }
