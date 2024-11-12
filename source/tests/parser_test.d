@@ -95,7 +95,26 @@ unittest {
             assert(!result.isNull);
             assert(result.get["Duration"] == "1515852");
             assert(result.get["Context"] == "");
-            writeln("Test5 passed: ");
+            writeln("Test6 passed: ");
+        }
+    }
+
+    {
+        auto config = Config();
+        config.groupBy = ["Context"];
+        config.groupBy ~= ["Usr"];
+        config.groupBy ~= ["RowsAffected"];
+        config.multilineFields = ["Context"];
+        auto parser = new LogParser(logger, config); // Тест 6:
+        {
+            writeln("Running test7: ");
+            auto result = parser.parse("40:33.299009-1515852,DBPOSTGRS,RowsAffected=0,Usr='TestUser',Context='ОбщийМодуль.Сам_APIРегламентныеЗаданияСервер.Модуль : 161 : РегистрыСведений.Сам_APIПризнакиЗаданийГруппСобытий.УстановитьСнятьПризнак(ЗаданиеОтправкиСообщения, \"\", Ложь);\nРегистрСведений.Сам_APIПризнакиЗаданийГруппСобытий.МодульМенеджера : 14 : МенеджерЗаписи.Удалить();'");
+            assert(!result.isNull);
+            assert(result.get["Duration"] == "1515852");
+            assert(result.get["Usr"] == "TestUser");
+            assert(result.get["RowsAffected"] == "0");
+            assert(result.get["Context"].indexOf("ОбщийМодуль") != -1);
+            writeln("Test7 passed: ");
         }
     }
 }
