@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "dub build", // <-- add a good name here
+			"type": "dub",
+			"run": false,
+			"problemMatcher": [
+				"$dmd"
+			],
+			"group": "build"
+		}
+	]
+}

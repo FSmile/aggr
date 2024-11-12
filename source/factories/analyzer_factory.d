@@ -3,6 +3,7 @@ module factories.analyzer_factory;
 import core.interfaces : ILogger;
 import log.analyzer : LogAnalyzer;
 import log.parser : LogParser, CsvWriter;
+import config.settings  : Config;
 
 class AnalyzerFactory {
     private ILogger logger;
@@ -11,9 +12,9 @@ class AnalyzerFactory {
         this.logger = logger;
     }
 
-    LogAnalyzer createAnalyzer(string outputPath, size_t workerCount = 1) {
-        auto parser = new LogParser(logger);
-        auto writer = new CsvWriter(outputPath);
-        return new LogAnalyzer(parser, writer, logger, workerCount);
+    LogAnalyzer createAnalyzer(Config config) {
+        auto parser = new LogParser(logger, config);
+        auto writer = new CsvWriter(config.outputPath, config);
+        return new LogAnalyzer(parser, writer, logger, config);
     }
 }

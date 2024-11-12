@@ -16,13 +16,14 @@ interface ILogAnalyzer {
 interface ILogger {
     void log(LogLevel level, string message, string file = __FILE__, int line = __LINE__);
     void error(string message, Exception e = null);
+    void warning(string message);
     void info(string message);
     void debug_(string message);
 }
 
 // Интерфейс для обработки результатов
 interface IResultWriter {
-    void write(LogLine[] results) @safe;
+    void write(LogLine[] results);
     void close() @safe;
 }
 
@@ -36,4 +37,9 @@ interface IMetricsCollector {
 
 interface ILogParser {
     Nullable!(string[string]) parse(string line);
+}
+
+// Интерфейс для приложения
+interface IApplication {
+    void reportError();
 }

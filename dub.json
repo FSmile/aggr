@@ -3,13 +3,10 @@
 		"bvg"
 	],
 	"copyright": "Copyright © 2024, bvg",
-	"dependencies": {
-		"vibe-d": "~>0.10.1"
-	},
 	"description": "A minimal D application.",
 	"license": "proprietary",
 	"name": "aggr",
-	"version": "0.1.1",
+	"version": "0.3.0",
 	"targetType": "executable",
 	"sourcePaths": ["source"],
     "importPaths": ["source"],
