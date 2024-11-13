@@ -4,6 +4,7 @@ import core.interfaces : ILogger, ILogAnalyzer, IApplication;
 import core.types;
 import core.queue;
 import utils.logging;
+import std.file : exists;
 
 import std.parallelism : TaskPool, task;
 import core.interfaces : ILogger, ILogAnalyzer;
@@ -20,6 +21,9 @@ import core.sync.condition : Condition;
 import core.atomic : atomicOp;
 import core.time : seconds;
 
+import workers.thread_pool;
+import config.settings : Config;
+
 class DataProcessor {
     private enum BATCH_SIZE = 10_000;
     private enum DEFAULT_TIMEOUT = 5.seconds;
@@ -31,14 +35,17 @@ class DataProcessor {
         string inputPath;
         ILogger logger;
         IApplication app;
-        
+        Config config;
         shared size_t activeTaskCount = 0;
         shared Mutex taskMutex;
         shared Condition taskCondition;
         Duration timeout = DEFAULT_TIMEOUT;
+
+        ThreadPool threadPool;
     }
 
     this(Config config, ILogAnalyzer analyzer, IApplication app = null) {
+        this.config = config;
         this.analyzer = analyzer;
         this.processors = new TaskPool(config.workerCount);
         this.buffer = new InputBuffer();
@@ -48,6 +55,8 @@ class DataProcessor {
         
         taskMutex = new shared Mutex();
         taskCondition = new shared Condition(taskMutex);
+
+        threadPool = new ThreadPool(config.workerCount, analyzer);
     }
 
     private void incrementTaskCount() {
@@ -69,22 +78,24 @@ class DataProcessor {
         try {
             logger.info("Starting processing...");
             if (inputPath == "-") {
-                logger.info("Reading from stdin");
                 processInput(stdin);
             } else {
                 logger.info("Reading from file: " ~ inputPath);
+                if (!exists(inputPath)) {
+                    logger.error("File does not exist: " ~ inputPath);
+                    throw new Exception("Input file not found: " ~ inputPath);
+                }
                 auto file = File(inputPath, "r");
                 scope(exit) file.close();
                 processInput(file);
             }
             logger.info("Processing completed");
+            
             // Ждем завершения всех задач
             if (!waitForCompletion()) {
-            logger.error("Failed to complete all tasks");
+                logger.error("Failed to complete all tasks");
                 return;
             }   
-            // Записываем результаты только после завершения всех задач
-            analyzer.writeResults();
         } catch (Exception e) {
             logger.error("Processing failed", e);
             if (app !is null) {
@@ -142,51 +153,46 @@ class DataProcessor {
     }
 
     bool waitForCompletion() {
-        try {
-            if (processors !is null) {
-                logger.debug_("Waiting for tasks completion. Active tasks: " ~ activeTaskCount.to!string);
-                
-                // Ждем завершения всех задач с таймаутом
-                bool completed = true;
-                synchronized(taskMutex) {
-                    if (activeTaskCount > 0) {
-                        completed = taskCondition.wait(timeout);
-                    }
-                }
-                
-                if (!completed) {
-                    logger.error("Timeout waiting for tasks completion");
-                    return false;
-                }
-                
-                // Завершаем пул потоков
-                processors.finish(true);
-                logger.debug_("All tasks completed successfully");
-                return true;
-            }
-            return true;
-        } catch (Exception e) {
-            logger.error("Error during wait for completion", e);
+        logger.debug_("Waiting for tasks completion. Active tasks: " ~ activeTaskCount.to!string);
+        
+        size_t attempts = 0;
+        const size_t MAX_ATTEMPTS = 100; // 1 секунда максимум
+        
+        while(activeTaskCount > 0 && attempts < MAX_ATTEMPTS) {
+            Thread.sleep(10.msecs);
+            attempts++;
+        }
+        
+        if (attempts >= MAX_ATTEMPTS) {
+            logger.error("Timeout waiting for tasks completion");
             return false;
         }
+        
+        logger.debug_("All tasks completed successfully");
+        return true;
     }
 
     void shutdown() {
         try {
-            if (processors !is null) {
-                // Пытаемся завершить корректно
-                if (!waitForCompletion()) {
-                    logger.warning("Forcing shutdown with incomplete tasks");
-                }
-                
-                // Останавливаем пул в любом случае
-                processors.stop();
-                processors = null;
-                
-                logger.debug_("Processor shutdown completed");
+            if (!waitForCompletion()) {
+                logger.warning("Forced shutdown with incomplete tasks");
             }
+            
+            if (analyzer !is null) {
+                analyzer.dispose();
+            }
+            
+            logger.debug_("Processor shutdown completed");
         } catch (Exception e) {
             logger.error("Error during shutdown", e);
+        }
+    }
+
+    void processBuffer(DataBuffer buffer) {
+        foreach(i, line; buffer.lines[buffer.startIdx..buffer.endIdx]) {
+            threadPool.addTask(() {
+                analyzer.processLine(line, i % config.workerCount);
+            }, i % config.workerCount);
         }
     }
 } 

@@ -29,17 +29,33 @@ import version_info : VersionInfo;
 
 import core.thread : Thread;
 import core.time : msecs;
-
+import std.process : thisProcessID;
+import core.thread : Thread, ThreadID;
 class Application : IApplication {
-    private ILogger logger;
-    private Config config;
-    private DataProcessor processor;
-    private bool hasError = false;
+    private {
+        DataProcessor processor;
+        ILogger logger;
+        ILogAnalyzer analyzer;
+        bool hasError;
+    }
 
     this(string[] args) {
-        config = Config.fromArgs(args);
-        logger = new FileLogger(config.logPath);
-        logger.info("Group by: " ~ config.groupBy.to!string);
+        logger = new FileLogger("aggr.log");
+        auto config = Config.fromArgs(args);
+        
+            // Логируем все параметры конфигурации
+        logger.info("Configuration parameters:");
+        logger.info("  Input file: " ~ config.inputPath);
+        logger.info("  Output file: " ~ config.outputPath);
+        logger.info("  Log file: " ~ config.logPath);
+        logger.info("  Group by fields: " ~ config.groupBy.to!string);
+        logger.info("  Aggregate field: " ~ config.aggregate);
+        logger.info("  Duration field: " ~ config.durationField);
+        logger.info("  Worker count: " ~ config.workerCount.to!string);
+        logger.info("  Timeout: " ~ config.timeout.toString());
+        logger.info("  Multiline fields: " ~ config.multilineFields.to!string);
+
+        //logger.info("Group by: " ~ config.groupBy.to!string);
         logger.info("Starting initialization...");
         
         config.logger = logger;
@@ -47,7 +63,7 @@ class Application : IApplication {
         
         logger.info("Creating analyzer...");
         auto factory = new AnalyzerFactory(logger);
-        auto analyzer = factory.createAnalyzer(config);
+        analyzer = factory.createAnalyzer(config);
         
         logger.info("Creating processor...");
         processor = new DataProcessor(config, analyzer, this);
@@ -57,21 +73,25 @@ class Application : IApplication {
     bool run() {
         try {
             logger.info("Starting application...");
+            logger.info("Process ID: " ~ thisProcessID().to!string);
+            logger.info("Thread ID: " ~ Thread.getThis().id.to!string);
             processor.start();
             
-            // Ждем завершения обработки
-            processor.waitForCompletion();
-            Thread.sleep(100.msecs);  // Даем время на финализацию
-
+            if (!processor.waitForCompletion()) {
+                logger.error("Failed to complete processing");
+                return false;
+            }
+            
+            analyzer.writeResults();
             logger.info("Application finished");
-            return !hasError;
+            return true;
         } catch (Exception e) {
             logger.error("Application error", e);
-            hasError = true;
             return false;
         } finally {
             processor.shutdown();
-            Thread.sleep(50.msecs);  // Даем время на освобождение ресурсов
+            analyzer.dispose();
+            Thread.sleep(50.msecs);
         }
     }
 

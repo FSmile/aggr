@@ -11,7 +11,7 @@ import core.time : Duration;
 import config.settings : Config;
 
 import core.interfaces : ILogAnalyzer, IResultWriter, ILogger, ILogParser;
-import core.types : LogLine, LogStatistics;
+import core.types : LogLine, LogStatistics, ThreadBuffer;
 
 import std.array : array;
 import std.algorithm : sort;
@@ -25,17 +25,17 @@ import std.file : isFile;
 import std.algorithm : any;
 import std.algorithm : canFind;
 
+import core.thread : Thread;
+import core.time : msecs;
+
 class LogAnalyzer : ILogAnalyzer {
 
     private {
-        LogLine[string] items;
-        File outputFile;
+        ThreadBuffer[] threadBuffers;
+        LogLine[string] globalBuffer;
+        shared Mutex globalMutex;
+        size_t workerCount;
         shared int lineCount = 0;
-        shared Mutex itemsMutex;
-        shared Mutex dataMutex;
-        shared Mutex outputMutex;
-        shared string currentLine = "";
-        shared bool isMultiline = false;
         ILogParser parser;
         IResultWriter writer;
         ILogger logger;
@@ -49,108 +49,147 @@ class LogAnalyzer : ILogAnalyzer {
         this.writer = writer;
         this.logger = logger;
         this.config = config;
-        itemsMutex = new shared Mutex();
-        dataMutex = new shared Mutex();
-        outputMutex = new shared Mutex();
         contextMutex = new shared Mutex();
-    }
-
-    ~this() {
-        synchronized(outputMutex) {  // Добавить синхонизацию
-            if (outputFile.isOpen) {
-                outputFile.close();
-            }
+        
+        workerCount = config.workerCount;
+        threadBuffers = new ThreadBuffer[](workerCount);
+        foreach(i; 0..workerCount) {
+            threadBuffers[i] = ThreadBuffer(i);
         }
+        globalMutex = new shared Mutex();
+        
+        logger.info("Initialized LogAnalyzer with " ~ workerCount.to!string ~ " workers");
     }
 
     void processLine(string line, ulong workerId = 0) @trusted {
         import core.atomic : atomicOp;
-        atomicOp!"+="(lineCount, 1); 
-        auto trimmedLine = line.strip();
+        atomicOp!"+="(lineCount, 1);
         
-        if (contextBuffer.length > 0) {
-            contextBuffer ~= line;
-            if (trimmedLine.endsWith("'")) {
-                auto fullContext = contextBuffer.join("\n");
-                processFullContext(fullContext);
-                contextBuffer.length = 0;
-            }
-            return;
-        }
+        threadBuffers[workerId].startProcessing();
+        logger.debug_("Worker " ~ workerId.to!string ~ " processing line");
         
-        // Проверяем начало многострочного поля
-        foreach (field; config.multilineFields) {
-            if (trimmedLine.indexOf(field ~ "='") != -1) {
-                contextBuffer = [line];
-                logger.debug_("Found start of multiline field: " ~ field);
+        synchronized(contextMutex) {
+            auto trimmedLine = line.strip();
+            
+            if (contextBuffer.length > 0) {
+                contextBuffer ~= line;
+                if (trimmedLine.endsWith("'")) {
+                    auto fullContext = contextBuffer.join("\n");
+                    processFullContext(fullContext, workerId);
+                    contextBuffer.length = 0;
+                    logger.debug_("Completed multiline context processing");
+                }
                 return;
+
             }
+            
+            foreach (field; config.multilineFields) {
+                if (trimmedLine.indexOf(field ~ "='") != -1) {
+                    contextBuffer = [line];
+                    logger.debug_("Found start of multiline field: " ~ field);
+                    return;
+                }
+            }
+            
+            processFullContext(line, workerId);
         }
-        
-        processFullContext(line);
     }
 
-    private void processFullContext(string fullContext) {
-        synchronized(dataMutex) {
-            try {
-                auto result = parser.parse(fullContext);
+    private void processFullContext(string fullContext, size_t workerId) {
+        try {
+            auto result = parser.parse(fullContext);
+            
+            if (!result.isNull) {
+                logger.debug_("Parsed result for worker " ~ workerId.to!string);
                 
-                if (!result.isNull) {
-                     logger.debug_("Parsed result: " ~ result.get.to!string);
-                    // Проверяем наличие полей группировки
-                    bool hasAllFields = true;
-                    foreach (field; config.groupBy) {
-                        if (field !in result.get) {
-                            hasAllFields = false;
-                            break;
-                        }
-                    }
-                    
-                    if (!hasAllFields) {
-                        logger.warning("Missing required grouping fields. Required: " ~ config.groupBy.to!string);
-                        return;
-                    }
-                    
-                    auto hash = generateGroupKey(result.get);
-                    if (hash.length == 0) {
-                        return;
-                    }
-                    
-                    // Добавляем или обновляем элемент
-                    if (hash in items) {
-                        items[hash].updateStats(result.get["Duration"].to!long);
-                    } else {
-                        items[hash] = LogLine(
-                            hash,
-                            result.get,
-                            result.get["Duration"].to!long
-                        );
+                bool hasAllFields = true;
+                foreach (field; config.groupBy) {
+                    if (field !in result.get) {
+                        hasAllFields = false;
+                        logger.debug_("Skipping line without required field: " ~ field);
+                        break;
                     }
                 }
-            } catch (Exception e) {
-                logger.error("Error processing context: " ~ e.msg);
+                
+                if (!hasAllFields) {
+                    return;
+                }
+                
+                auto hash = generateGroupKey(result.get);
+                if (hash.length > 0) {
+                    auto line = LogLine(
+                        hash,
+                        result.get,
+                        result.get["Duration"].to!long
+                    );
+                    threadBuffers[workerId].add(hash, line);
+                    logger.debug_("Added line to worker " ~ workerId.to!string ~ " buffer");
+                }
             }
+        } catch (Exception e) {
+            logger.error("Error processing context: " ~ e.msg);
+        } finally {
+            threadBuffers[workerId].stopProcessing();
         }
     }
 
     void writeResults() @trusted {
-        synchronized(dataMutex) {
-            logger.debug_("Writing results, items count: " ~ items.length.to!string);
-            if (items.length == 0) {
-                logger.debug_("No items to write");
-                return;
+       try {
+        logger.info("Starting to write results"); 
+        // Ждм завершения всех потоков и сливаем буферы
+        foreach(i; 0..workerCount) {
+             size_t attempts = 0;
+            while(threadBuffers[i].isActive()) {
+                Thread.sleep(10.msecs);
+                attempts++;
+                if (attempts > 10) {
+                    logger.error("Thread " ~ i.to!string ~ " did not finish in 100ms, skipping");
+                    break;
+                }
+                if (attempts > 100) {
+                    logger.error("Thread " ~ i.to!string ~ " did not finish in 1000ms, skipping");
+                    break;
+                }
             }
-            auto sortedItems = items.values.array();
-            sortedItems.sort!((a, b) => a.avg > b.avg);
-            writer.write(sortedItems);
+            flushThreadBuffer(i);
+        }
+
+        // Записываем результаты батчами
+        synchronized(globalMutex) {
+            const size_t BATCH_SIZE = 1000;
+            LogLine[] batch;
+            size_t totalProcessed = 0;
+            try {
+            foreach(line; globalBuffer.byValue) {
+                batch ~= line;
+                if (batch.length >= BATCH_SIZE) {
+                    writer.write(batch);
+                    totalProcessed += batch.length;
+                    logger.debug_("Wrote batch of " ~ batch.length.to!string ~ " lines. Total: " ~ totalProcessed.to!string);
+                    batch = null;
+                }
+            }
+            
+            if (batch.length > 0) {
+                writer.write(batch);
+                totalProcessed += batch.length;
+                logger.debug_("Wrote final batch of " ~ batch.length.to!string ~ " lines. Total: " ~ totalProcessed.to!string);
+            }
+            } catch (Exception e) {
+                logger.error("Error writing results: " ~ e.msg);
+            }
+            logger.info("Completed writing results. Total lines: " ~ totalProcessed.to!string);
+        }
+        } catch (Exception e) {
+            logger.error("Error writing results: " ~ e.msg);
         }
     }
 
     LogStatistics getStatistics() {
-        synchronized(dataMutex) {
+        synchronized(globalMutex) {
             return LogStatistics(
                 atomicLoad(lineCount),
-                items.length,
+                globalBuffer.length,
                 0, // errorCount
                 Duration.zero // totalProcessingTime
             );
@@ -173,6 +212,35 @@ class LogAnalyzer : ILogAnalyzer {
             return "";
         }
         return getFastHash(key);
+    }
+
+    void flushThreadBuffer(size_t workerId) @trusted {
+        auto lines = threadBuffers[workerId].flush();
+        synchronized(globalMutex) {
+            foreach(line; lines) {
+                if (line.hash in globalBuffer) {
+                    globalBuffer[line.hash].updateStats(line.duration);
+                } else {
+                    globalBuffer[line.hash] = line;
+                }
+            }
+        }
+    }
+
+    void dispose() @trusted {
+        if (writer !is null) {
+            try {
+                writer.close();
+            } catch (Exception e) {
+                logger.error("Error closing writer", e);
+            }
+        }
+        
+        foreach(ref buffer; threadBuffers) {
+            buffer = ThreadBuffer.init;
+        }
+        
+        globalBuffer.clear();
     }
 
 }

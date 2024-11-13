@@ -17,11 +17,12 @@ struct Config {
     string outputPath = "output.csv";
     string logPath = "aggr.log";
     string[] groupBy = ["Context"];     
-    string aggregate = "Duration";       
+    string aggregate = "Duration";
+    string durationField = "Duration";         
     int workerCount = 1;                
     Duration timeout = 5.seconds;
     ILogger logger;
-    string[] multilineFields = ["Context"];
+    string[] multilineFields = ["Context"];             
 
     static Config fromArgs(string[] args, bool skipValidation = false) {
         Config config;

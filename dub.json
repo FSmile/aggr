@@ -6,7 +6,7 @@
 	"description": "A minimal D application.",
 	"license": "proprietary",
 	"name": "aggr",
-	"version": "0.3.0",
+	"version": "0.4.0",
 	"targetType": "executable",
 	"sourcePaths": ["source"],
     "importPaths": ["source"],

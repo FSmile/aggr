@@ -10,6 +10,8 @@ interface ILogAnalyzer {
     void writeResults() @safe;
     LogStatistics getStatistics() @safe;
     int getLineCount() @safe;
+    void flushThreadBuffer(size_t workerId) @trusted;
+    void dispose() @safe;
 }
 
 // Интерфейс для логирования

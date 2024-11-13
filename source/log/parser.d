@@ -69,10 +69,7 @@ class LogParser : ILogParser {
                 
                 if (valueEnd > valueStart) {
                     string value = line[valueStart..valueEnd];
-                    result[field] = parseMultilineValue(value);
-                    
-                    // После нахождения многострочного поля прекращаем поиск
-                   // return Nullable!(string[string])(result);
+                    result[field] = parseMultilineValue(value);               
                 }
             }
         }
@@ -114,16 +111,40 @@ class CsvWriter : IResultWriter {
     private shared Mutex mutex;
     private Config config;
     private ILogger logger;
+    private bool isInitialized;
+    private bool headerWritten;
 
     this(string path, Config config) {
         outputFile = File(path, "w");
         mutex = new shared Mutex();
         this.config = config;
         this.logger = config.logger;
+        this.isInitialized = true;
+        this.headerWritten = false;
+        
+        // Записываем заголовок при создании
+        writeHeader();
+    }
+
+    private void writeHeader() {
+        if (!headerWritten) {
+            string header = "Total(ms),Avg(ms),Max(ms),Count";
+            foreach(field; config.groupBy) {
+                header ~= "," ~ field;
+            }
+            outputFile.writeln(header);
+            headerWritten = true;
+            logger.debug_("Wrote header: " ~ header);
+        }
     }
 
     void write(LogLine[] results) {
         synchronized(mutex) {
+            if (!isInitialized) {
+                logger.error("Attempt to write to closed file");
+                return;
+            }
+            
             scope(exit) outputFile.flush();
             
             if (results.length == 0) {
@@ -132,14 +153,6 @@ class CsvWriter : IResultWriter {
             }
             
             logger.debug_("Writing " ~ results.length.to!string ~ " results to CSV");
-            
-            // Формируем заголовок динамически
-            string header = "Total(ms),Avg(ms),Max(ms),Count";
-            foreach(field; config.groupBy) {
-                header ~= "," ~ field;
-            }
-            outputFile.writeln(header);
-            logger.debug_("Wrote header: " ~ header);
             
             // Записываем данные
             foreach(item; results) {
@@ -161,7 +174,7 @@ class CsvWriter : IResultWriter {
                     if (config.multilineFields.canFind(field) && value.length > 0) {
                         auto lines = value.split("\n");
                         if (lines.length > 0) {
-                            value = lines[$-1].strip();
+                            value = lines[$ - 1].strip();
                         }
                     }
                     
@@ -181,12 +194,17 @@ class CsvWriter : IResultWriter {
         }
     }
 
-    void close() {
+    void close() @safe {
         synchronized(mutex) {
-            if (outputFile.isOpen) {
+            if (isInitialized) {
                 outputFile.close();
+                isInitialized = false;
             }
         }
+    }
+
+    ~this() {
+        close();
     }
 }
 
