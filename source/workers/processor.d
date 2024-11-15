@@ -23,55 +23,34 @@ import core.time : seconds;
 
 import workers.thread_pool;
 import config.settings : Config;
-
+import std.array;
 class DataProcessor {
     private enum BATCH_SIZE = 10_000;
     private enum DEFAULT_TIMEOUT = 5.seconds;
 
     private {
         ILogAnalyzer analyzer;
-        TaskPool processors;
         InputBuffer buffer;
         string inputPath;
         ILogger logger;
         IApplication app;
         Config config;
-        shared size_t activeTaskCount = 0;
-        shared Mutex taskMutex;
-        shared Condition taskCondition;
         Duration timeout = DEFAULT_TIMEOUT;
 
         ThreadPool threadPool;
+        Mutex mutex;
     }
 
     this(Config config, ILogAnalyzer analyzer, IApplication app = null) {
         this.config = config;
         this.analyzer = analyzer;
-        this.processors = new TaskPool(config.workerCount);
         this.buffer = new InputBuffer();
         this.inputPath = config.inputPath;
         this.logger = config.logger;
         this.app = app;
         
-        taskMutex = new shared Mutex();
-        taskCondition = new shared Condition(taskMutex);
-
         threadPool = new ThreadPool(config.workerCount, analyzer);
-    }
-
-    private void incrementTaskCount() {
-        synchronized(taskMutex) {
-            atomicOp!"+="(activeTaskCount, 1);
-        }
-    }
-
-    private void decrementTaskCount() {
-        synchronized(taskMutex) {
-            atomicOp!"-="(activeTaskCount, 1);
-            if (activeTaskCount == 0) {
-                taskCondition.notify();
-            }
-        }
+        mutex = new Mutex();
     }
 
     void start() {
@@ -135,41 +114,49 @@ class DataProcessor {
     }
 
     private void processBatch(string[] lines) {
-        incrementTaskCount();
-        processors.put(task(() {
-            try {
-                foreach(line; lines) {
-                    try {
-                        analyzer.processLine(line);
-                    } catch (Exception e) {
-                        logger.error("Error processing line: " ~ line, e);
-                        if (app !is null) app.reportError();
-                    }
+        DataBuffer[] records;
+        size_t startIdx = 0;
+        
+        logger.debug_("Processing batch of " ~ lines.length.to!string ~ " lines");
+        
+        // Собираем записи
+        for(size_t i = 0; i < lines.length; i++) {
+            if (isNewRecord(lines[i])) {
+                if (i > startIdx) {
+                    records ~= DataBuffer(lines[startIdx..i]);
+                    logger.debug_("Found record from " ~ startIdx.to!string ~ " to " ~ i.to!string);
                 }
-            } finally {
-                decrementTaskCount();
+                startIdx = i;
             }
-        }));
+        }
+        
+        // Добавляем последнюю запись
+        if (startIdx < lines.length) {
+            records ~= DataBuffer(lines[startIdx..lines.length]);
+            logger.debug_("Found final record from " ~ startIdx.to!string);
+        }
+        
+        logger.debug_("Found " ~ records.length.to!string ~ " records in batch");
+        
+        // Отправляем записи в потоки
+        foreach(i, record; records) {
+            string fullRecord = record.lines.join("\n");
+            logger.debug_("Sending record to thread " ~ (i % config.workerCount).to!string);
+            threadPool.addTask(() {
+                analyzer.processLine(fullRecord, i % config.workerCount);
+            }, i % config.workerCount);
+        }
+        
+        threadPool.waitForCompletion(1.seconds);
+    }
+
+    private bool isNewRecord(string line) {
+        import std.regex;
+        return !line.matchFirst(r"^\d{2}:\d{2}\.\d{6}").empty;
     }
 
     bool waitForCompletion() {
-        logger.debug_("Waiting for tasks completion. Active tasks: " ~ activeTaskCount.to!string);
-        
-        size_t attempts = 0;
-        const size_t MAX_ATTEMPTS = 100; // 1 секунда максимум
-        
-        while(activeTaskCount > 0 && attempts < MAX_ATTEMPTS) {
-            Thread.sleep(10.msecs);
-            attempts++;
-        }
-        
-        if (attempts >= MAX_ATTEMPTS) {
-            logger.error("Timeout waiting for tasks completion");
-            return false;
-        }
-        
-        logger.debug_("All tasks completed successfully");
-        return true;
+        return threadPool.waitForCompletion(timeout);
     }
 
     void shutdown() {
@@ -178,6 +165,8 @@ class DataProcessor {
                 logger.warning("Forced shutdown with incomplete tasks");
             }
             
+            threadPool.shutdown();
+
             if (analyzer !is null) {
                 analyzer.dispose();
             }
@@ -185,14 +174,6 @@ class DataProcessor {
             logger.debug_("Processor shutdown completed");
         } catch (Exception e) {
             logger.error("Error during shutdown", e);
-        }
-    }
-
-    void processBuffer(DataBuffer buffer) {
-        foreach(i, line; buffer.lines[buffer.startIdx..buffer.endIdx]) {
-            threadPool.addTask(() {
-                analyzer.processLine(line, i % config.workerCount);
-            }, i % config.workerCount);
         }
     }
 } 

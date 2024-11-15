@@ -54,7 +54,7 @@ class LogAnalyzer : ILogAnalyzer {
         workerCount = config.workerCount;
         threadBuffers = new ThreadBuffer[](workerCount);
         foreach(i; 0..workerCount) {
-            threadBuffers[i] = ThreadBuffer(i);
+            threadBuffers[i] = ThreadBuffer(i, logger);
         }
         globalMutex = new shared Mutex();
         
@@ -68,54 +68,65 @@ class LogAnalyzer : ILogAnalyzer {
         threadBuffers[workerId].startProcessing();
         logger.debug_("Worker " ~ workerId.to!string ~ " processing line");
         
-        synchronized(contextMutex) {
-            auto trimmedLine = line.strip();
-            
-            if (contextBuffer.length > 0) {
-                contextBuffer ~= line;
-                if (trimmedLine.endsWith("'")) {
-                    auto fullContext = contextBuffer.join("\n");
-                    processFullContext(fullContext, workerId);
-                    contextBuffer.length = 0;
-                    logger.debug_("Completed multiline context processing");
-                }
-                return;
-
-            }
-            
-            foreach (field; config.multilineFields) {
-                if (trimmedLine.indexOf(field ~ "='") != -1) {
-                    contextBuffer = [line];
-                    logger.debug_("Found start of multiline field: " ~ field);
+        try {
+            synchronized(contextMutex) {
+                auto trimmedLine = line.strip();
+                
+                if (contextBuffer.length > 0) {
+                    contextBuffer ~= line;
+                    logger.debug_("Added line to context buffer: " ~ line);
+                    
+                    if (trimmedLine.endsWith("'") || trimmedLine.endsWith("'\n") || trimmedLine.endsWith("'\r\n")) {
+                        auto fullContext = contextBuffer.join("\n");
+                        logger.debug_("Processing complete context: " ~ fullContext);
+                        processFullContext(fullContext, workerId);
+                        contextBuffer.length = 0;
+                        logger.debug_("Context buffer cleared");
+                    }
                     return;
                 }
+                
+                foreach (field; config.multilineFields) {
+                    if (trimmedLine.indexOf(field ~ "='") != -1) {
+                        contextBuffer = [line];
+                        logger.debug_("Started multiline context: " ~ line);
+                        return;
+                    }
+                }
+                
+                processFullContext(line, workerId);
             }
-            
-            processFullContext(line, workerId);
+        } catch (Exception e) {
+            logger.error("Error processing line: " ~ e.msg);
         }
     }
 
     private void processFullContext(string fullContext, size_t workerId) {
         try {
+            logger.debug_("Fullcontext result: " ~ fullContext);
             auto result = parser.parse(fullContext);
+            logger.debug_("Parse result: " ~ (result.isNull ? "null" : "not null"));
             
             if (!result.isNull) {
-                logger.debug_("Parsed result for worker " ~ workerId.to!string);
+                logger.debug_("Fields: " ~ result.get.to!string);
                 
                 bool hasAllFields = true;
                 foreach (field; config.groupBy) {
                     if (field !in result.get) {
                         hasAllFields = false;
-                        logger.debug_("Skipping line without required field: " ~ field);
+                        logger.debug_("Missing field: " ~ field);
                         break;
                     }
                 }
                 
                 if (!hasAllFields) {
+                    logger.debug_("Skipping line - missing required fields");
                     return;
                 }
                 
                 auto hash = generateGroupKey(result.get);
+                logger.debug_("Generated hash: " ~ hash);
+                
                 if (hash.length > 0) {
                     auto line = LogLine(
                         hash,
@@ -123,7 +134,7 @@ class LogAnalyzer : ILogAnalyzer {
                         result.get["Duration"].to!long
                     );
                     threadBuffers[workerId].add(hash, line);
-                    logger.debug_("Added line to worker " ~ workerId.to!string ~ " buffer");
+                    logger.debug_("Added to buffer: " ~ hash);
                 }
             }
         } catch (Exception e) {
@@ -140,12 +151,8 @@ class LogAnalyzer : ILogAnalyzer {
         foreach(i; 0..workerCount) {
              size_t attempts = 0;
             while(threadBuffers[i].isActive()) {
-                Thread.sleep(10.msecs);
+                Thread.sleep(50.msecs);
                 attempts++;
-                if (attempts > 10) {
-                    logger.error("Thread " ~ i.to!string ~ " did not finish in 100ms, skipping");
-                    break;
-                }
                 if (attempts > 100) {
                     logger.error("Thread " ~ i.to!string ~ " did not finish in 1000ms, skipping");
                     break;

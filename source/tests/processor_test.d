@@ -61,7 +61,8 @@ class LogAnalyzerMock : ILogAnalyzer {
 
     void flushThreadBuffer(size_t workerId) @trusted {
         synchronized(mutex) {
-            // В mock-объекте ничего не делаем
+            // Имитируем задержку обработки
+            Thread.sleep(1.msecs);
         }
     }
 
@@ -140,7 +141,7 @@ unittest {
     
     // Создаем временный файл с тестовыми данными
     auto tempFile = buildPath(tempDir, "test.log");
-    writeln("Файл со��дан: ", tempFile);
+    writeln("Файл содан: ", tempFile);
     
     {
         auto file = File(tempFile, "w");

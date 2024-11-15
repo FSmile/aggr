@@ -7,6 +7,7 @@ import std.container.dlist;
 import core.atomic;
 import std.range;
 import core.interfaces : ILogAnalyzer;
+import std.algorithm : min;
 
 class ThreadPool {
     private {
@@ -41,7 +42,7 @@ class ThreadPool {
     }
 
     private void workerFunction(size_t workerId) {
-        while(atomicLoad(isRunning)) {
+        while(atomicLoad(isRunning) || !taskQueue.empty) {
             Task task;
             bool hasTask = false;
             
@@ -93,12 +94,16 @@ class ThreadPool {
         }
     }
 
-    bool waitForCompletion(Duration timeout = 5.seconds) {
+    bool waitForCompletion(Duration timeout) {
+        auto startTime = MonoTime.currTime;
+        
         synchronized(mutex) {
-            while(activeTaskCount > 0) {
-                if(!condition.wait(timeout)) {
+            while(!taskQueue.empty || activeTaskCount > 0) {
+                auto remaining = timeout - (MonoTime.currTime - startTime);
+                if (remaining <= Duration.zero) {
                     return false;
                 }
+                condition.wait(min(remaining, 100.msecs));
             }
             return true;
         }

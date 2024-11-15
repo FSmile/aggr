@@ -6,6 +6,7 @@ import std.conv : to;
 import workers.thread_pool;
 import core.sync.mutex : Mutex;
 import core.sync.condition : Condition;
+import core.interfaces : ILogger;
 // Уровни логирования
 enum LogLevel {
     DEBUG,
@@ -63,8 +64,10 @@ struct LogLine {
 
 struct DataBuffer {
     string[] lines;
-    size_t startIdx;
-    size_t endIdx;
+    
+    this(string[] lines) {
+        this.lines = lines;
+    }
 }
 
 struct FieldInfo {
@@ -79,12 +82,14 @@ struct ThreadBuffer {
         shared Mutex mutex;
         size_t workerId;
         bool isProcessing;
+        ILogger logger;
     }
     
-    this(size_t id) {
+    this(size_t id, ILogger logger) {
         mutex = new shared Mutex();
         workerId = id;
         isProcessing = false;
+        this.logger = logger;
     }
     
     void startProcessing() {
@@ -107,10 +112,13 @@ struct ThreadBuffer {
     
     void add(string hash, LogLine line) {
         synchronized(mutex) {
+            logger.debug_("Adding to buffer " ~ workerId.to!string ~ ": " ~ hash);
             if (hash in items) {
                 items[hash].updateStats(line.duration);
+                logger.debug_("Updated existing record in buffer " ~ workerId.to!string);
             } else {
                 items[hash] = line;
+                logger.debug_("Added new record to buffer " ~ workerId.to!string);
             }
         }
     }
